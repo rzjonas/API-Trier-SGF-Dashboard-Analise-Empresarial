@@ -1,0 +1,18 @@
+{% extends "layout.html" %}
+{% block title %}Desempenho{% endblock %}
+{% block content %}
+    <h2 style="text-align:center; margin-top: 50px; color: #c0392b;">
+        🚧 Página de Análise de Desempenho em Construção 🚧
+    </h2>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'none';
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Painel de Análise Empresarial{% endblock %} - Trier SGF</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .main-header {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+        .main-nav {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #eef2f7;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .main-nav a {
+            margin: 0 15px;
+            text-decoration: none;
+            color: #1a3b5d;
+            font-weight: bold;
+            padding: 8px 12px;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .main-nav a:not(.dashboard-geral-link):hover,
+        .main-nav a.active:not(.dashboard-geral-link) {
+            background-color: #ffffff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .main-nav a.dashboard-geral-link {
+            font-size: 1.1em;
+            padding: 12px 20px;
+            margin: 0 25px;
+            color: #ffffff;
+            background-color: #1a3b5d;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .main-nav a.dashboard-geral-link.active,
+        .main-nav a.dashboard-geral-link:hover {
+             background-color: #2c537e;
+             transform: translateY(-4px);
+             box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <div id="loadingOverlay">
+        <div class="loader"></div>
+    </div>
+
+    <div id="update-notification" style="display: none; position: fixed; top: 80px; right: 20px; z-index: 10000;">
+        <button id="btn-refresh-data" style="background-color: #2ecc71; color: white; border: none; padding: 12px 20px; border-radius: 25px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-weight: bold;">
+            ✨ Novos Dados Disponíveis. Atualizar?
+        </button>
+    </div>
+
+    <div class="container">
+        <div class="main-header">
+            <h1>Painel de Análise Empresarial</h1>
+        </div>
+        
+        <div class="filtros" id="areaFiltrosGlobais">
+            <label for="dataInicio">De:</label> 
+            <input type="date" id="dataInicio">
+            <label for="dataFim">Até:</label> 
+            <input type="date" id="dataFim">
+            
+            <button id="btnFiltrarGlobal">Filtrar Tudo</button>
+        </div>
+
+        <nav class="main-nav">
+            <a href="/analise-vendas" class="{{ 'active' if request.path == '/analise-vendas' else '' }}">Análise de Vendas</a>
+            <a href="/produtos-estoque" class="{{ 'active' if request.path == '/produtos-estoque' else '' }}">Produtos & Estoque</a>
+            
+            <a href="/" class="dashboard-geral-link {{ 'active' if request.path == '/' else '' }}">Dashboard Geral</a>
+            
+            <a href="/financeiro-compras" class="{{ 'active' if request.path == '/financeiro-compras' else '' }}">Financeiro & Compras</a>
+            <a href="/desempenho" class="{{ 'active' if request.path == '/desempenho' else '' }}">Desempenho</a>
+        </nav>
+
+        <main id="pageContent">
+            {% block content %}
+            {% endblock %}
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+        
+            const dataInicioUrl = params.get('dataInicio');
+            const dataFimUrl = params.get('dataFim');
+
+            const hoje = new Date().toISOString().slice(0, 10);
+
+            document.getElementById('dataInicio').value = dataInicioUrl || hoje;
+            document.getElementById('dataFim').value = dataFimUrl || hoje;
+
+            document.getElementById('btnFiltrarGlobal').addEventListener('click', () => {
+                const dataInicio = document.getElementById('dataInicio').value;
+                const dataFim = document.getElementById('dataFim').value;
+            
+                const url = new URL(window.location.href);
+                url.searchParams.set('dataInicio', dataInicio);
+                url.searchParams.set('dataFim', dataFim);
+            
+                url.searchParams.delete('codVendedor');
+            
+                document.getElementById('loadingOverlay').style.display = 'flex';
+                window.location.href = url.toString();
+            });
+
+            document.querySelectorAll('.main-nav a').forEach(link => {
+                link.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    const dataInicio = document.getElementById('dataInicio').value;
+                    const dataFim = document.getElementById('dataFim').value;
+                    const url = new URL(event.currentTarget.href);
+                    url.searchParams.set('dataInicio', dataInicio);
+                    url.searchParams.set('dataFim', dataFim);
+                    document.getElementById('loadingOverlay').style.display = 'flex';
+                    window.location.href = url.toString();
+                });
+            });
+
+            let initialDataCount = -1;
+            const UPDATE_CHECK_INTERVAL_MS = 60000;
+            let updateInterval;
+
+            async function getInitialDataState() {
+                const dataInicio = document.getElementById('dataInicio').value;
+                const dataFim = document.getElementById('dataFim').value;
+                const url = new URL('/api/dados-dashboard', window.location.origin);
+                url.searchParams.set('dataInicio', dataInicio);
+                url.searchParams.set('dataFim', dataFim);
+
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) return;
+                    const data = await response.json();
+                    initialDataCount = data.sales_data ? data.sales_data.length : 0;
+                    console.log(`Estado inicial dos dados: ${initialDataCount} registros.`);
+                } catch (error) {
+                    console.error("Não foi possível buscar o estado inicial dos dados.", error);
+                    initialDataCount = 0;
+                }
+            }
+
+            async function checkForUpdates() {
+                if (initialDataCount === -1) return; 
+
+                console.log("Verificando se há novos dados...");
+                const dataInicio = document.getElementById('dataInicio').value;
+                const dataFim = document.getElementById('dataFim').value;
+                const url = new URL('/api/dados-dashboard', window.location.origin);
+                url.searchParams.set('dataInicio', dataInicio);
+                url.searchParams.set('dataFim', dataFim);
+            
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) return;
+                    const newData = await response.json();
+                    const newDataCount = newData.sales_data ? newData.sales_data.length : 0;
+
+                    if (newDataCount !== initialDataCount) {
+                        console.log(`Novos dados encontrados! (${newDataCount} registros vs ${initialDataCount} iniciais).`);
+                        document.getElementById('update-notification').style.display = 'block';
+                        clearInterval(updateInterval);
+                    }
+                } catch (error) {
+                    console.error("Erro ao verificar por atualizações:", error);
+                }
+            }
+    
+            document.getElementById('btn-refresh-data').addEventListener('click', () => {
+                document.getElementById('loadingOverlay').style.display = 'flex';
+                window.location.reload();
+            });
+
+            getInitialDataState().then(() => {
+                if (document.querySelector('h2').textContent.includes('Construção')) {
+                    console.log("Página em construção, verificação de atualização desativada.");
+                } else {
+                     updateInterval = setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL_MS);
+                }
+            });
+    
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

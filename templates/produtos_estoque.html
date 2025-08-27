@@ -1,0 +1,480 @@
+{% extends "layout.html" %}
+{% block title %}Produto e Estoque{% endblock %}
+
+{% block content %}
+<style>
+    .card-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr); 
+        gap: 20px;
+        margin-bottom: 25px;
+        margin-top: 25px;
+    }
+
+    .card {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        border: 1px solid #eef2f7;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .card h3 {
+        margin-top: 0;
+        margin-bottom: 10px;
+        color: #1a3b5d;
+        font-size: 16px;
+    }
+
+    .card p {
+        margin: 0;
+        font-size: 28px;
+        font-weight: bold;
+        color: #1a3b5d;
+        flex-grow: 1;
+    }
+
+    .card span {
+        font-size: 12px;
+        color: #7f8c8d;
+        margin-top: 5px;
+    }
+    
+    @media (max-width: 1200px) {
+        .card-row {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 768px) {
+        .card-row {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .tooltip-container {
+        position: relative;
+        display: inline-block;
+        margin-left: 5px;
+    }
+    .info-icon {
+        color: #5dade2; border: 1.5px solid #aed6f1; border-radius: 50%;
+        width: 16px; height: 16px; display: inline-flex; justify-content: center;
+        align-items: center; font-size: 12px; cursor: help; font-weight: bold;
+    }
+    .tooltip-container {
+    position: relative;
+    display: inline-block;
+    margin-left: 5px;
+    }
+    .info-icon {
+    color: #5dade2; border: 1.5px solid #aed6f1; border-radius: 50%;
+    width: 16px; height: 16px; display: inline-flex; justify-content: center;
+    align-items: center; font-size: 12px; cursor: help; font-weight: bold;
+    }
+    .tooltip-text {
+    visibility: hidden;
+    width: 280px;
+    background-color: #34495e;
+    color: #fff;
+    text-align: left;
+    border-radius: 6px;
+    padding: 10px;
+    position: absolute;
+    z-index: 10;
+        
+    top: 100%;
+    right: 0;
+    margin-top: 5px;
+
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    font-size: 12px;
+    font-weight: normal;
+    }
+    .tooltip-container:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+    }
+
+    .card-niveis-estoque h3 { margin-bottom: 15px; }
+    .niveis-estoque-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+    }
+    .nivel-item {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 10px;
+        border-radius: 5px;
+        height: 80px;
+    }
+    .nivel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        width: 100%;
+    }
+    .nivel-titulo {
+        color: #555;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    .nivel-valor {
+        font-weight: bold;
+        font-size: 22px;
+    }
+    .nivel-condicao {
+        color: #7f8c8d;
+        font-size: 12px;
+        margin-top: 2px;
+    }
+
+    .nivel-item.critico { border-left: 4px solid #e74c3c; background-color: #fcece9; }
+    .nivel-item.critico .nivel-valor { color: #e74c3c; }
+    .nivel-item.baixo { border-left: 4px solid #f39c12; background-color: #fef5e7; }
+    .nivel-item.baixo .nivel-valor { color: #f39c12; }
+    .nivel-item.aceitavel { border-left: 4px solid #27ae60; background-color: #e9f7ef; }
+    .nivel-item.aceitavel .nivel-valor { color: #27ae60; }
+    .nivel-item.otimo { border-left: 4px solid #2ecc71; background-color: #eafaf1; }
+    .nivel-item.otimo .nivel-valor { color: #2ecc71; }
+
+    .charts-grid {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 20px;
+        margin-top: 25px;
+    }
+
+    .grafico-container {
+        grid-column: span 6;
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        border: 1px solid #eef2f7;
+        min-height: 400px; 
+        height: 600px;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+    }
+
+    .grafico-container canvas {
+        position: relative;
+        width: 100% !important;
+        height: auto !important;
+        flex-grow: 1;
+    }
+
+    .grafico-container h3 {
+        text-align: center;
+        margin-top: 0;
+        margin-bottom: 15px;
+        color: #1a3b5d;
+    }
+
+    @media (max-width: 992px) {
+        .charts-grid {
+            grid-template-columns: 1fr;
+        }
+        .grafico-container {
+            grid-column: span 1;
+        }
+    }
+    
+    #tabela-analise-produtos {
+        table-layout: fixed;
+        width: 100%;
+    }
+
+    #tabela-analise-produtos th,
+    #tabela-analise-produtos td {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    #tabela-analise-produtos th:first-child,
+    #tabela-analise-produtos td:first-child {
+        white-space: normal;
+        width: 30%;
+    }
+    
+    #tabela-analise-produtos th:last-child {
+        white-space: normal;
+        text-align: center;
+        overflow: visible;
+    }
+</style>
+
+<div id="mainContent" style="display: none;">
+    <div class="card-row">
+        <div class="card">
+            <h3>Produtos Ativos</h3>
+            <p id="card-produtos-ativos">0</p>
+        </div>
+        <div class="card">
+            <h3>Produtos Sem Venda</h3>
+            <p id="card-produtos-sem-venda">0</p>
+            <span>No período selecionado</span>
+        </div>
+        <div class="card">
+            <h3>Valor do Estoque (Custo)</h3>
+            <p id="card-valor-estoque">R$ 0,00</p>
+            <span>Baseado no custo médio</span>
+        </div>
+    </div>
+
+    <div class="charts-grid">
+        <div class="grafico-container">
+            <h3>Níveis de Estoque</h3>
+            <div class="niveis-estoque-container">
+                <div class="nivel-item critico">
+                    <div class="nivel-header">
+                        <span class="nivel-titulo">Crítico</span>
+                        <span id="card-estoque-critico" class="nivel-valor">0</span>
+                    </div>
+                    <span class="nivel-condicao">(&le; 2)</span>
+                </div>
+                <div class="nivel-item baixo">
+                    <div class="nivel-header">
+                        <span class="nivel-titulo">Baixo</span>
+                        <span id="card-estoque-baixo" class="nivel-valor">0</span>
+                    </div>
+                    <span class="nivel-condicao">(&le; 5)</span>
+                </div>
+                <div class="nivel-item aceitavel">
+                    <div class="nivel-header">
+                        <span class="nivel-titulo">Aceitável</span>
+                        <span id="card-estoque-aceitavel" class="nivel-valor">0</span>
+                    </div>
+                    <span class="nivel-condicao">(&gt; 5)</span>
+                </div>
+                <div class="nivel-item otimo">
+                    <div class="nivel-header">
+                        <span class="nivel-titulo">Ótimo</span>
+                        <span id="card-estoque-otimo" class="nivel-valor">0</span>
+                    </div>
+                    <span class="nivel-condicao">(&gt; 10)</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grafico-container">
+            <h3>Curva ABC de Produtos por Receita</h3>
+            <canvas id="graficoCurvaABC"></canvas>
+        </div>
+        <div class="grafico-container">
+            <h3>Top 10 Produtos (Receita)</h3>
+            <canvas id="graficoTopReceita"></canvas>
+        </div>
+         <div class="grafico-container">
+            <h3>Top 10 Produtos (Quantidade)</h3>
+            <canvas id="graficoTopQtd"></canvas>
+        </div>
+    </div>
+
+    <h2>Tabela de Análise de Produtos</h2>
+    <div class="table-wrapper">
+        <table id="tabela-analise-produtos">
+            <thead>
+                <tr>
+                    <th title="Produto">Produto</th>
+                    <th title="Qtd. Vendida">Qtd. Vendida</th>
+                    <th title="Receita (R$)">Receita (R$)</th>
+                    <th title="Custo Total (R$)">Custo Total (R$)</th>
+                    <th title="Lucro Bruto (R$)">Lucro Bruto (R$)</th>
+                    <th title="Margem (%)">Margem (%)</th>
+                    <th title="Estoque Atual">Estoque Atual</th>
+                    <th title="Giro (Simplificado)">
+                        Giro (Simplificado)
+                        <div class="tooltip-container">
+                            <span class="info-icon">i</span>
+                            <div class="tooltip-text">
+                                Cálculo simplificado: Total de itens vendidos no período dividido pelo estoque atual. É uma métrica útil, mas uma aproximação.
+                            </div>
+                        </div>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+    </div>
+    <div class="paginacao-container" id="paginacaoContainerProdutos"></div>
+</div>
+
+<div id="emptyState" style="display: none;">
+    <div class="icon">
+        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" fill="#5dade2"/>
+        </svg>
+    </div>
+    <h2>Nenhum dado encontrado</h2>
+    <p>Não há registros de vendas de produtos para gerar a análise com os filtros selecionados.</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const elements = {
+        mainContent: document.getElementById('mainContent'),
+        emptyState: document.getElementById('emptyState'),
+        cardProdutosAtivos: document.getElementById('card-produtos-ativos'),
+        cardProdutosSemVenda: document.getElementById('card-produtos-sem-venda'),
+        cardValorEstoque: document.getElementById('card-valor-estoque'),
+        cardEstoqueCritico: document.getElementById('card-estoque-critico'),
+        cardEstoqueBaixo: document.getElementById('card-estoque-baixo'),
+        cardEstoqueAceitavel: document.getElementById('card-estoque-aceitavel'),
+        cardEstoqueOtimo: document.getElementById('card-estoque-otimo'),
+        tabelaProdutosBody: document.querySelector('#tabela-analise-produtos tbody'),
+        paginacaoContainer: document.getElementById('paginacaoContainerProdutos'),
+        loadingOverlay: document.getElementById('loadingOverlay')
+    };
+    
+    let chartABC, chartTopReceita, chartTopQtd;
+    
+    const ITENS_POR_PAGINA = 50;
+    let paginaAtualProdutos = 1;
+    let todosOsProdutos = [];
+
+    const formatarMoeda = (valor) => {
+        return (valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    };
+
+    async function carregarDadosProdutos() {
+        elements.loadingOverlay.style.display = 'flex';
+        
+        const dataInicio = document.getElementById('dataInicio').value;
+        const dataFim = document.getElementById('dataFim').value;
+        
+        const url = `/api/dados-produtos-estoque?dataInicio=${dataInicio}&dataFim=${dataFim}`;
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Erro na requisição: ${response.statusText}`);
+            
+            const data = await response.json();
+
+            if (!data || !data.tabela_produtos || data.tabela_produtos.length === 0) {
+                elements.mainContent.style.display = 'none';
+                elements.emptyState.style.display = 'flex';
+            } else {
+                elements.mainContent.style.display = 'block';
+                elements.emptyState.style.display = 'none';
+
+                atualizarCards(data.indicadores);
+                renderizarGraficoABC(data.curva_abc);
+                renderizarGraficosTop(data.graficos_top);
+                
+                todosOsProdutos = data.tabela_produtos;
+                paginaAtualProdutos = 1;
+
+                renderizarTabelaPaginada();
+            }
+
+        } catch (error) {
+            console.error("Falha ao carregar dados de produtos e estoque:", error);
+            elements.mainContent.style.display = 'none';
+            elements.emptyState.style.display = 'flex';
+        } finally {
+            elements.loadingOverlay.style.display = 'none';
+        }
+    }
+
+    function atualizarCards(indicadores) {
+        elements.cardProdutosAtivos.textContent = (indicadores.produtos_ativos || 0).toLocaleString('pt-BR');
+        elements.cardProdutosSemVenda.textContent = (indicadores.produtos_sem_venda || 0).toLocaleString('pt-BR');
+        elements.cardValorEstoque.textContent = formatarMoeda(indicadores.valor_estoque_custo);
+        elements.cardEstoqueCritico.textContent = (indicadores.estoque_critico || 0).toLocaleString('pt-BR');
+        elements.cardEstoqueBaixo.textContent = (indicadores.estoque_baixo || 0).toLocaleString('pt-BR');
+        elements.cardEstoqueAceitavel.textContent = (indicadores.estoque_aceitavel || 0).toLocaleString('pt-BR');
+        elements.cardEstoqueOtimo.textContent = (indicadores.estoque_otimo || 0).toLocaleString('pt-BR');
+    }
+
+    function renderizarGraficoABC(dados) {
+        const ctx = document.getElementById('graficoCurvaABC').getContext('2d');
+        if (chartABC) chartABC.destroy();
+        chartABC = new Chart(ctx, { type: 'doughnut', data: { labels: dados.labels, datasets: [{ label: 'Nº de Produtos por Categoria', data: dados.data, backgroundColor: ['#2ecc71', '#3498db', '#f1c40f'], hoverOffset: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } } } });
+    }
+
+    function renderizarGraficosTop(dados) {
+        const ctxReceita = document.getElementById('graficoTopReceita').getContext('2d');
+        if (chartTopReceita) chartTopReceita.destroy();
+        chartTopReceita = new Chart(ctxReceita, { type: 'bar', data: { labels: dados.top_receita.labels, datasets: [{ label: 'Receita (R$)', data: dados.top_receita.data, backgroundColor: '#1a3b5d', }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
+        
+        const ctxQtd = document.getElementById('graficoTopQtd').getContext('2d');
+        if (chartTopQtd) chartTopQtd.destroy();
+        chartTopQtd = new Chart(ctxQtd, { type: 'bar', data: { labels: dados.top_qtd.labels, datasets: [{ label: 'Quantidade Vendida', data: dados.top_qtd.data, backgroundColor: '#2c537e', }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
+    }
+
+    function renderizarTabelaPaginada() {
+        const inicio = (paginaAtualProdutos - 1) * ITENS_POR_PAGINA;
+        const fim = inicio + ITENS_POR_PAGINA;
+        const dadosDaPagina = todosOsProdutos.slice(inicio, fim);
+
+        renderizarTabelaProdutos(dadosDaPagina);
+        elements.paginacaoContainer.innerHTML = criarControlesPaginacao();
+    }
+
+    function renderizarTabelaProdutos(produtosDaPagina) {
+        if (produtosDaPagina.length === 0) {
+            elements.tabelaProdutosBody.innerHTML = '<tr><td colspan="8">Nenhum dado de venda encontrado para o período.</td></tr>';
+            return;
+        }
+
+        let tableHTML = '';
+        produtosDaPagina.forEach(p => {
+            tableHTML += `
+                <tr>
+                    <td>${p.nome}</td>
+                    <td>${(p.qtd_vendida || 0).toLocaleString('pt-BR')}</td>
+                    <td>${formatarMoeda(p.receita_gerada)}</td>
+                    <td>${formatarMoeda(p.custo_total)}</td>
+                    <td>${formatarMoeda(p.lucro_bruto)}</td>
+                    <td>${(p.margem_percentual || 0).toFixed(2)}%</td>
+                    <td>${(p.quantidadeEstoque || 0).toLocaleString('pt-BR')}</td>
+                    <td>${(p.giro_estoque || 0).toFixed(2)}</td>
+                </tr>
+            `;
+        });
+        
+        elements.tabelaProdutosBody.innerHTML = tableHTML;
+    }
+
+    function criarControlesPaginacao() {
+        const totalPaginas = Math.ceil(todosOsProdutos.length / ITENS_POR_PAGINA);
+        if (totalPaginas <= 1) return '';
+
+        let html = `<button class="paginacao-btn" data-pagina="${paginaAtualProdutos - 1}" ${paginaAtualProdutos === 1 ? 'disabled' : ''}>&laquo; Anterior</button>`;
+        for (let i = 1; i <= totalPaginas; i++) {
+             if (i === 1 || i === totalPaginas || (i >= paginaAtualProdutos - 2 && i <= paginaAtualProdutos + 2)) {
+                html += `<button class="paginacao-btn ${i === paginaAtualProdutos ? 'active' : ''}" data-pagina="${i}">${i}</button>`;
+             } else if (i === paginaAtualProdutos - 3 || i === paginaAtualProdutos + 3) {
+                html += `<span>...</span>`;
+             }
+        }
+        html += `<button class="paginacao-btn" data-pagina="${paginaAtualProdutos + 1}" ${paginaAtualProdutos === totalPaginas ? 'disabled' : ''}>Próximo &raquo;</button>`;
+        return html;
+    }
+
+    function handlePaginacaoClick(event) {
+        const target = event.target.closest('.paginacao-btn');
+        if (!target || target.disabled) return;
+
+        paginaAtualProdutos = parseInt(target.dataset.pagina, 10);
+        renderizarTabelaPaginada();
+    }
+    
+    elements.paginacaoContainer.addEventListener('click', handlePaginacaoClick);
+
+    carregarDadosProdutos();
+});
+</script>
+{% endblock %}

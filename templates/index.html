@@ -1,0 +1,408 @@
+{% extends "layout.html" %}
+
+{% block title %}Dashboard Geral{% endblock %}
+
+{% block content %}
+<style>
+
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 20px;
+        margin-top: 35px;
+    }
+
+    .kpi-card {
+        grid-column: span 6;
+        background-color: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        border-left: 5px solid #1a3b5d;
+        text-align: center;
+    }
+    .kpi-card h4 {
+        margin: 0 0 10px 0;
+        color: #7f8c8d;
+        font-size: 14px;
+        text-transform: uppercase;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+    }
+    .kpi-card p {
+        margin: 0;
+        font-size: 28px;
+        font-weight: bold;
+        color: #1a3b5d;
+    }
+
+    .comparativo-card {
+        grid-column: span 12;
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        text-align: center;
+        border: 1px solid #eef2f7;
+    }
+    .comparativo-valor {
+        font-size: 24px;
+        font-weight: bold;
+        display: inline-block;
+        padding: 5px 10px;
+        border-radius: 6px;
+        color: white;
+    }
+
+    .grafico-container {
+        grid-column: span 6;
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        border: 1px solid #eef2f7;
+        height: 400px;
+        display: flex;
+        flex-direction: column;
+    }
+    .grafico-container h3 {
+        text-align: center; margin-top: 0; margin-bottom: 15px; color: #1a3b5d;
+    }
+
+    .mapa-calor-container {
+        grid-column: span 6;
+        padding: 20px; background-color: #fff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        height: 400px;
+        display: flex;
+        flex-direction: column;
+    }
+     .mapa-calor-container h3 {
+        text-align: center; margin-top: 0; margin-bottom: 15px; color: #1a3b5d;
+    }
+    .mapa-calor-table-wrapper {
+        overflow: auto;
+        flex-grow: 1;
+    }
+    .mapa-calor-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+    .mapa-calor-table th, .mapa-calor-table td {
+        border: 1px solid #eef2f7;
+        text-align: center;
+        font-size: 11px;
+        padding: 5px 2px;
+    }
+    .mapa-calor-table th {
+        background-color: #f8f9fa;
+        font-weight: bold;
+        color: #333;
+    }
+    .mapa-calor-table td {
+        height: 30px;
+        cursor: pointer;
+        transition: transform 0.1s ease-in-out, box-shadow 0.1s ease-in-out;
+    }
+    .mapa-calor-table td:hover {
+        transform: scale(1.1);
+        box-shadow: 0 0 10px rgba(0,0,0,0.3);
+        z-index: 10;
+        position: relative;
+    }
+    .mapa-calor-table td span {
+        visibility: hidden; position: absolute; background-color: #34495e; color: #fff;
+        padding: 5px; border-radius: 4px; z-index: 20; white-space: nowrap;
+        bottom: 100%; left: 50%; transform: translateX(-50%);
+    }
+    .mapa-calor-table td:hover span {
+        visibility: visible;
+    }
+
+    @media (max-width: 992px) {
+        .kpi-card, .grafico-container, .mapa-calor-container {
+            grid-column: span 12;
+        }
+    }
+
+    .tooltip-container { position: relative; display: inline-block; }
+    .info-icon {
+        color: #5dade2; border: 1.5px solid #aed6f1; border-radius: 50%; width: 16px; height: 16px;
+        display: inline-flex; justify-content: center; align-items: center; font-size: 12px; cursor: help;
+    }
+    .tooltip-text {
+        visibility: hidden; width: 250px; background-color: #34495e; color: #fff; text-align: left;
+        border-radius: 6px; padding: 10px; position: absolute; z-index: 10;
+        bottom: 150%; left: 50%; margin-left: -125px; opacity: 0; transition: opacity 0.3s ease;
+        font-size: 12px; font-weight: 500; text-transform: none;
+    }
+    .tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
+</style>
+
+<div id="mainContent" style="display: none;">
+    <div class="dashboard-grid">
+        <div id="kpiTicketMedio" class="kpi-card"></div>
+        <div id="kpiIpt" class="kpi-card"></div>
+        <div id="comparativoVendas" class="comparativo-card"></div>
+        
+        <div class="grafico-container">
+            <h3>Evolução da Receita (R$)</h3>
+            <canvas id="evolucaoReceitaChart"></canvas>
+        </div>
+        <div class="grafico-container">
+            <h3>Top 5 Grupos de Produtos por Receita (R$)</h3>
+            <canvas id="topCategoriasChart"></canvas>
+        </div>
+
+        <div class="mapa-calor-container">
+            <h3>Mapa de Calor (Vendas por Dia/Hora)</h3>
+            <div id="mapaCalor" class="mapa-calor-table-wrapper"></div>
+        </div>
+        
+        <div class="grafico-container">
+            <h3>Top 5 Vendedores por Receita (R$)</h3>
+            <canvas id="topVendedoresChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<div id="emptyState" style="display: none;">
+    <div class="icon">
+        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" fill="#5dade2"/>
+        </svg>
+    </div>
+    <h2>Nenhum dado encontrado</h2>
+    <p>Não há registros de vendas para gerar o dashboard com os filtros selecionados.</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const mainContent = document.getElementById('mainContent');
+    const emptyState = document.getElementById('emptyState');
+    let charts = {};
+
+    async function fetchAndUpdateDashboard() {
+        loadingOverlay.style.display = 'flex';
+        
+        const dataInicio = document.getElementById('dataInicio').value;
+        const dataFim = document.getElementById('dataFim').value;
+        
+        const url = new URL('/api/dados-dashboard-geral', window.location.origin);
+        url.searchParams.set('dataInicio', dataInicio);
+        url.searchParams.set('dataFim', dataFim);
+        
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Erro na rede ao buscar dados do dashboard');
+            
+            const dados = await response.json();
+
+            if (Object.keys(dados).length === 0 || !dados.kpis) {
+                mainContent.style.display = 'none';
+                emptyState.style.display = 'flex';
+            } else {
+                mainContent.style.display = 'block';
+                emptyState.style.display = 'none';
+                renderDashboard(dados);
+            }
+
+        } catch (error) {
+            console.error("Falha ao buscar dados para o dashboard:", error);
+            mainContent.style.display = 'none';
+            emptyState.style.display = 'flex';
+        } finally {
+            loadingOverlay.style.display = 'none';
+        }
+    }
+
+    function renderDashboard(dados) {
+        renderKpis(dados.kpis);
+        renderComparativo(dados.comparativo);
+        renderEvolucaoChart(dados.evolucao_receita);
+        renderTopCategoriasChart(dados.top_categorias);
+        renderMapaCalor(dados.mapa_calor);
+        renderTopVendedoresChart(dados.top_vendedores);
+    }
+    
+    function formatCurrency(value) {
+        return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+
+    function renderKpis(kpis) {
+        document.getElementById('kpiTicketMedio').innerHTML = `
+            <h4>Ticket Médio
+                <div class="tooltip-container">
+                    <span class="info-icon">i</span>
+                    <div class="tooltip-text">Receita Líquida Total dividida pelo Número de Vendas (transações únicas).</div>
+                </div>
+            </h4>
+            <p>${formatCurrency(kpis.ticket_medio)}</p>`;
+        
+        document.getElementById('kpiIpt').innerHTML = `
+            <h4>Itens por Transação
+                <div class="tooltip-container">
+                    <span class="info-icon">i</span>
+                    <div class="tooltip-text">Total de Itens Vendidos dividido pelo Número de Vendas (transações únicas).</div>
+                </div>
+            </h4>
+            <p>${kpis.ipt.toFixed(2)}</p>`;
+    }
+
+    function renderComparativo(comparativo) {
+        const percentual = comparativo.percentual;
+        const corBox = percentual >= 0 ? '#2ecc71' : '#e74c3c';
+        const simbolo = percentual >= 0 ? '▲' : '▼';
+        const textoPercentual = `${simbolo} ${percentual.toFixed(2)}%`;
+        
+        const diferencaValor = comparativo.diferenca_valor;
+        const corValor = diferencaValor >= 0 ? '#2ecc71' : '#e74c3c';
+        const textoDiferenca = formatCurrency(diferencaValor); 
+        
+        document.getElementById('comparativoVendas').innerHTML = `
+            <span style="font-weight: bold; color: #34495e; display: inline-flex; align-items: center; gap: 8px;">
+                Receita (vs. Período Anterior): 
+                <strong style="color: ${corValor}; margin-left: 8px;">${textoDiferenca}</strong>
+                <div class="tooltip-container">
+                    <span class="info-icon">i</span>
+                    <div class="tooltip-text">
+                        Compara a receita do período selecionado com um período anterior de mesma duração. Ex: Se você filtrar por 7 dias, a comparação será com os 7 dias imediatamente anteriores.
+                    </div>
+                </div>
+            </span>
+            <span class="comparativo-valor" style="background-color: ${corBox}; margin-left: 15px;">
+                ${textoPercentual}
+            </span>`;
+    }
+
+    function destroyChart(chartId) {
+        if (charts[chartId]) {
+            charts[chartId].destroy();
+        }
+    }
+
+    function renderEvolucaoChart(evolucao) {
+        destroyChart('evolucaoReceitaChart');
+        const ctx = document.getElementById('evolucaoReceitaChart').getContext('2d');
+        charts['evolucaoReceitaChart'] = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: evolucao.labels.map(data => {
+                    const [ano, mes, dia] = data.split('-');
+                    return `${dia}/${mes}/${ano}`;
+                }),
+                datasets: [{
+                    label: 'Receita Líquida',
+                    data: evolucao.data,
+                    borderColor: '#3498db',
+                    backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false,
+                layout: {
+                    padding: {
+                        bottom: 20
+                    }
+                }
+            }
+        });
+    }
+
+    function renderTopCategoriasChart(topCategorias) {
+        destroyChart('topCategoriasChart');
+        const ctx = document.getElementById('topCategoriasChart').getContext('2d');
+        charts['topCategoriasChart'] = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: topCategorias.labels,
+                datasets: [{
+                    label: 'Receita (R$)',
+                    data: topCategorias.data,
+                    backgroundColor: '#1abc9c',
+                }]
+            },
+            options: { 
+                indexAxis: 'y', 
+                responsive: true, 
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+    }
+    
+    function renderTopVendedoresChart(topVendedores) {
+        destroyChart('topVendedoresChart');
+        const ctx = document.getElementById('topVendedoresChart').getContext('2d');
+        charts['topVendedoresChart'] = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: topVendedores.labels,
+                datasets: [{
+                    label: 'Receita (R$)',
+                    data: topVendedores.data,
+                    backgroundColor: '#9b59b6',
+                }]
+            },
+            options: { 
+                indexAxis: 'y',
+                responsive: true, 
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+    }
+
+    function renderMapaCalor(mapa) {
+        const container = document.getElementById('mapaCalor');
+        let valores = [];
+        Object.values(mapa).forEach(horas => {
+            valores.push(...Object.values(horas));
+        });
+        const maxValor = Math.max(...valores.filter(v => v > 0));
+
+        const getColor = (value) => {
+            if (value === 0) return '#f8f9fa';
+            const intensidade = Math.min(value / maxValor, 1);
+            const r = Math.floor(173 + (26 - 173) * intensidade);
+            const g = Math.floor(216 + (59 - 216) * intensidade);
+            const b = Math.floor(230 + (93 - 230) * intensidade);
+            return `rgb(${r},${g},${b})`;
+        };
+
+        let html = '<table class="mapa-calor-table"><thead><tr><th>Hora</th>';
+        for (let i = 0; i < 24; i++) {
+            html += `<th>${i.toString().padStart(2, '0')}</th>`;
+        }
+        html += '</tr></thead><tbody>';
+
+        const diasOrdenados = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'];
+        
+        diasOrdenados.forEach(dia => {
+            if (mapa[dia]) {
+                const horas = mapa[dia];
+                html += `<tr><td>${dia.substring(0,3)}</td>`;
+                for (let i = 0; i < 24; i++) {
+                    const valor = horas[i] || 0;
+                    html += `<td style="background-color: ${getColor(valor)};"><span>${formatCurrency(valor)}</span></td>`;
+                }
+                html += '</tr>';
+            }
+        });
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+
+    document.addEventListener('DOMContentLoaded', fetchAndUpdateDashboard);
+</script>
+{% endblock %}

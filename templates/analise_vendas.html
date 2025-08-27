@@ -1,0 +1,561 @@
+{% extends "layout.html" %}
+
+
+{% block title %}Análise de Vendas{% endblock %}
+
+
+{% block content %}
+<style>
+    .graficos-grid-analise {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(350px, 1fr));
+        gap: 25px;
+        margin-bottom: 25px;
+    }
+    .grafico-container-analise {
+        background-color: #fdfdfd;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        border: 1px solid #eef2f7;
+        height: 350px;
+        display: flex;
+        flex-direction: column;
+    }
+    .grafico-container-analise h3 {
+        text-align: center;
+        margin-top: 0;
+        margin-bottom: 15px;
+        color: #1a3b5d;
+        font-weight: 600;
+    }
+
+    @media (max-width: 768px) {
+        .graficos-grid-analise {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .resumo-card h4 {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .tooltip-container {
+        position: relative;
+        display: inline-block;
+    }
+
+    .info-icon {
+        font-family: monospace;
+        font-weight: bold;
+        color: #5dade2;
+        border: 1.5px solid #aed6f1;
+        border-radius: 50%;
+        width: 16px;
+        height: 16px;
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 12px;
+        cursor: help;
+    }
+
+    .tooltip-text {
+        visibility: hidden;
+        width: 280px;
+        background-color: #34495e;
+        color: #fff;
+        text-align: left;
+        border-radius: 6px;
+        padding: 10px;
+        position: absolute;
+        z-index: 10;
+        bottom: 150%;
+        left: 50%;
+        margin-left: -140px;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.4;
+        text-transform: none;
+    }
+
+    .tooltip-text::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: #34495e transparent transparent transparent;
+    }
+
+    .tooltip-container:hover .tooltip-text {
+        visibility: visible;
+        opacity: 1;
+    }
+</style>
+
+
+<div id="mainContent" style="display: none;">
+    <div class="resumo-container" id="resumoContainer"></div>
+    
+    <div class="graficos-grid-analise" id="graficosContainerAnalise" style="display: none;">
+        <div class="grafico-container-analise">
+            <h3>Vendas por Vendedor (R$)</h3>
+            <canvas id="vendasPorVendedorChart"></canvas>
+        </div>
+        <div class="grafico-container-analise">
+            <h3>Vendas por Hora do Dia (R$)</h3>
+            <canvas id="vendasPorHoraChart"></canvas>
+        </div>
+        <div class="grafico-container-analise">
+            <h3>Vendas por Forma de Pagamento (R$)</h3>
+            <canvas id="vendasPorPagamentoChart"></canvas>
+        </div>
+         <div class="grafico-container-analise">
+            <h3>Vendas por Tipo de Entrega (R$)</h3>
+            <canvas id="vendasPorEntregaChart"></canvas>
+        </div>
+    </div>
+    <h2>NOTAS EMITIDAS</h2>
+    <div class="table-wrapper" id="tabelaContainerPrincipais"></div>
+    <div class="paginacao-container" id="paginacaoContainerPrincipais"></div>
+    
+    <h2>NOTAS EXCLUÍDAS (PARA CONFERÊNCIA)</h2>
+    <div class="table-wrapper" id="tabelaContainerExcluidas"></div>
+    <div class="paginacao-container" id="paginacaoContainerExcluidas"></div>
+</div>
+<div id="emptyState" style="display: none;">
+    <div class="icon">
+        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" fill="#5dade2"/>
+        </svg>
+    </div>
+    <h2>Nenhum dado encontrado</h2>
+    <p>Não há registros de vendas para exibir.</p>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const mainContent = document.getElementById('mainContent');
+    const emptyState = document.getElementById('emptyState');
+    const pageContainer = document.querySelector('.container');
+    const resumoContainer = document.getElementById('resumoContainer');
+    const tabelaContainerPrincipais = document.getElementById('tabelaContainerPrincipais');
+    const tabelaContainerExcluidas = document.getElementById('tabelaContainerExcluidas');
+    
+    const ITENS_POR_PAGINA = 50;
+    let paginaAtualPrincipais = 1;
+    let paginaAtualExcluidas = 1;
+    let notasPrincipaisFiltradas = [];
+    let notasExcluidasFiltradas = [];
+
+    let dadosAgrupados = {};
+    let cabecalhoVenda = [];
+    let cabecalhoItem = [];
+    
+    const mapeamentoColunas = {
+        "numeroNota": "Nº Cupom", "dataEmissao": "Data", "horaEmissao": "Hora",
+        "codigoVendedor": "Nº Vend", "nomeVendedor": "Vendedor", "codigoCliente": "Cód. Cliente",
+        "entrega": "Entrega", "condicaoPagamento_nome": "Cond. Pagamento", "parceiro": "Parceiro",
+        "numeroNotaFiscal": "Nº Nota", "status_venda": "Status", "numeroNotaOrigem": "Nota Origem",
+        "Total Custo": "Total Custo", "Total Bruto": "Total Bruto", "Total Líquido": "Total Líquido",
+        "codigoProduto": "Cód. Produto", "nome": "Descrição Produto", "quantidadeProdutos": "Qtd",
+        "valorTotalCusto": "Vlr. Custo", "valorTotalBruto": "Vlr. Bruto", "valorTotalLiquido": "Vlr. Líquido"
+    };
+
+    function iniciarDashboard(dados) {
+        const { sales_data, vendas_por_pagamento, vendas_por_hora, vendas_por_vendedor, vendas_por_entrega } = dados;
+
+        if (!sales_data || sales_data.length === 0) {
+            mainContent.style.display = 'none';
+            emptyState.style.display = 'flex';
+            if (pageContainer) pageContainer.style.maxWidth = '60%';
+        } else {
+            emptyState.style.display = 'none';
+            mainContent.style.display = 'block';
+            if (pageContainer) pageContainer.style.maxWidth = '100%';
+            
+            processarDados(sales_data);
+            renderizarGraficos(vendas_por_pagamento, vendas_por_hora, vendas_por_vendedor, vendas_por_entrega);
+            atualizarDashboard(dadosAgrupados);
+        }
+    }
+
+    function renderizarGraficos(dadosPagamento, dadosHora, dadosVendedor, dadosEntrega) {
+        const graficosContainer = document.getElementById('graficosContainerAnalise');
+
+        ['vendasPorPagamentoChart', 'vendasPorHoraChart', 'vendasPorVendedorChart', 'vendasPorEntregaChart'].forEach(id => {
+            const chartInstance = Chart.getChart(id);
+            if (chartInstance) chartInstance.destroy();
+        });
+        
+        const hasPagamentoData = dadosPagamento && Object.keys(dadosPagamento).length > 0;
+        const hasHoraData = dadosHora && Object.values(dadosHora).some(v => v > 0);
+        const hasVendedorData = dadosVendedor && Object.keys(dadosVendedor).length > 0;
+        const hasEntregaData = dadosEntrega && Object.keys(dadosEntrega).length > 0;
+
+        if (!hasPagamentoData && !hasHoraData && !hasVendedorData && !hasEntregaData) {
+            graficosContainer.style.display = 'none';
+            return;
+        }
+        
+        graficosContainer.style.display = 'grid';
+
+        const getRandomColor = () => `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, 0.7)`;
+
+        if (hasVendedorData) {
+            const ctx = document.getElementById('vendasPorVendedorChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(dadosVendedor),
+                    datasets: [{
+                        data: Object.values(dadosVendedor),
+                        backgroundColor: Object.keys(dadosVendedor).map(() => getRandomColor()),
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+        
+        if (hasHoraData) {
+            const ctx = document.getElementById('vendasPorHoraChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(dadosHora).map(h => `${h}h`),
+                    datasets: [{
+                        label: 'Valor de Vendas (R$)',
+                        data: Object.values(dadosHora),
+                        backgroundColor: '#3498db',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+
+        if (hasPagamentoData) {
+            const ctx = document.getElementById('vendasPorPagamentoChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(dadosPagamento),
+                    datasets: [{
+                        data: Object.values(dadosPagamento),
+                        backgroundColor: Object.keys(dadosPagamento).map(() => getRandomColor()),
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        if (hasEntregaData) {
+            const ctx = document.getElementById('vendasPorEntregaChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(dadosEntrega),
+                    datasets: [{
+                        data: Object.values(dadosEntrega),
+                        backgroundColor: ['#2ecc71', '#e74c3c', '#f1c40f'],
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+    }
+    
+    function processarDados(dadosPlanos) {
+        dadosAgrupados = {};
+        if (!dadosPlanos || dadosPlanos.length === 0) return;
+
+        const colunasInfoVenda = ["numeroNota", "dataEmissao", "horaEmissao", "codigoVendedor", "nomeVendedor", "codigoCliente", "entrega", "condicaoPagamento_nome", "numeroNotaFiscal", "status_venda", "numeroNotaOrigem"];
+        const colunasDisplayVenda = ["numeroNota", "dataEmissao", "horaEmissao", "codigoVendedor", "codigoCliente", "entrega", "condicaoPagamento_nome", "numeroNotaFiscal", "status_venda"];
+        
+        cabecalhoItem = ["codigoProduto", "nome", "quantidadeProdutos", "valorTotalCusto", "valorTotalBruto", "valorTotalLiquido"];
+        cabecalhoVenda = [...colunasDisplayVenda, "Total Custo", "Total Bruto", "Total Líquido"];
+        
+        dadosPlanos.forEach(linha => {
+            const notaId = linha.numeroNota;
+            if (!dadosAgrupados [notaId]) {
+                dadosAgrupados [notaId] = { info: {}, itens: [], totais: { bruto: 0, liquido: 0, custo: 0 }};
+                colunasInfoVenda.forEach(col => dadosAgrupados [notaId].info [col] = linha [col]);
+            }
+            const item = {};
+            cabecalhoItem.forEach(col => item [col] = linha [col]);
+            dadosAgrupados [notaId].itens.push(item);
+            dadosAgrupados [notaId].totais.bruto += parseFloat(linha.valorTotalBruto || 0);
+            dadosAgrupados [notaId].totais.liquido += parseFloat(linha.valorTotalLiquido || 0);
+            dadosAgrupados [notaId].totais.custo += parseFloat(linha.valorTotalCusto || 0);
+        });
+    }
+    
+    function atualizarDashboard(dadosParaExibir) {
+        const vendas = Object.values(dadosParaExibir);
+        if (vendas.length === 0) {
+            resumoContainer.innerHTML = "<p style='text-align:center;'>Nenhum registro encontrado para o filtro aplicado.</p>";
+            tabelaContainerPrincipais.innerHTML = "";
+            tabelaContainerExcluidas.innerHTML = "";
+            document.getElementById('paginacaoContainerPrincipais').innerHTML = "";
+            document.getElementById('paginacaoContainerExcluidas').innerHTML = "";
+            return;
+        }
+
+        notasPrincipaisFiltradas = vendas.filter(v => v.info.status_venda !== 'Excluída');
+        notasExcluidasFiltradas = vendas.filter(v => v.info.status_venda === 'Excluída');
+        
+        let countEmitidas = 0, countDevolvidas = 0;
+        let somaBruto = 0, somaLiquido = 0, somaCusto = 0;
+        notasPrincipaisFiltradas.forEach(({ info, totais }) => {
+            if (info.status_venda === 'OK') countEmitidas++;
+            else if (info.status_venda === 'DEVOLUÇÃO') countDevolvidas++;
+            somaBruto += totais.bruto;
+            somaLiquido += totais.liquido;
+            somaCusto += totais.custo;
+        });
+        const somaLucro = somaLiquido - somaCusto;
+        const totalTransacoes = vendas.length;
+        
+        resumoContainer.innerHTML = `
+            <div class="resumo-card emitidas"><h4>NOTAS VENDAS</h4><p>${countEmitidas}</p></div>
+            <div class="resumo-card excluidas"><h4>NOTAS VENDAS EXCLUÍDAS</h4><p>${notasExcluidasFiltradas.length}</p></div>
+            <div class="resumo-card devolvidas"><h4>NOTAS DEVOLUÇÃO</h4><p>${countDevolvidas}</p></div>
+            <div class="resumo-card custo"><h4>VALOR CUSTO</h4><p>${somaCusto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p></div>
+            <div class="resumo-card bruto"><h4>VALOR BRUTO</h4><p>${somaBruto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p></div>
+            <div class="resumo-card liquido"><h4>VALOR LIQUIDO</h4><p>${somaLiquido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p></div>
+            <div class="resumo-card totais"><h4>TOTAL NOTAS EMITIDAS</h4><p>${totalTransacoes}</p></div>
+            <div class="resumo-card lucro">
+                <h4>
+                    LUCRO BRUTO DAS VENDAS
+                    <div class="tooltip-container">
+                        <span class="info-icon">i</span>
+                        <div class="tooltip-text">
+                            Os valores de Custo e Lucro Bruto referem-se estritamente ao Custo dos Produtos Vendidos (CPV), não incluindo despesas operacionais como aluguel, salários e custos administrativos.
+                        </div>
+                    </div>
+                </h4>
+                <p>${somaLucro.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+            </div>
+        `;
+
+        paginaAtualPrincipais = 1;
+        paginaAtualExcluidas = 1;
+        renderizarTabelaPaginada('principais');
+        renderizarTabelaPaginada('excluidas');
+    }
+
+    function renderizarTabelaPaginada(tipo) {
+        const ehPrincipal = tipo === 'principais';
+        const dadosCompletos = ehPrincipal ? notasPrincipaisFiltradas : notasExcluidasFiltradas;
+        const paginaAtual = ehPrincipal ? paginaAtualPrincipais : paginaAtualExcluidas;
+        const containerTabela = ehPrincipal ? tabelaContainerPrincipais : tabelaContainerExcluidas;
+        const containerPaginacao = document.getElementById(ehPrincipal ? 'paginacaoContainerPrincipais' : 'paginacaoContainerExcluidas');
+
+        const inicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
+        const fim = inicio + ITENS_POR_PAGINA;
+        const dadosDaPagina = dadosCompletos.slice(inicio, fim);
+        
+        const totais = dadosCompletos.reduce((acc, { totais }) => {
+            acc.custo += totais.custo;
+            acc.bruto += totais.bruto;
+            acc.liquido += totais.liquido;
+            return acc;
+        }, { custo: 0, bruto: 0, liquido: 0 });
+
+        containerTabela.innerHTML = criarHtmlDeTabela(dadosDaPagina, totais);
+        containerPaginacao.innerHTML = criarControlesPaginacao(dadosCompletos.length, paginaAtual, tipo);
+    }
+
+    function criarControlesPaginacao(totalItens, paginaAtual, tipo) {
+        const totalPaginas = Math.ceil(totalItens / ITENS_POR_PAGINA);
+        if (totalPaginas <= 1) return '';
+
+        let html = '';
+        html += `<button class="paginacao-btn" data-tipo="${tipo}" data-pagina="${paginaAtual - 1}" ${paginaAtual === 1 ? 'disabled' : ''}>&laquo; Anterior</button>`;
+
+        for (let i = 1; i <= totalPaginas; i++) {
+             if (i === 1 || i === totalPaginas || (i >= paginaAtual - 2 && i <= paginaAtual + 2)) {
+                html += `<button class="paginacao-btn ${i === paginaAtual ? 'active' : ''}" data-tipo="${tipo}" data-pagina="${i}">${i}</button>`;
+             } else if (i === paginaAtual - 3 || i === paginaAtual + 3) {
+                html += `<span>...</span>`;
+             }
+        }
+        
+        html += `<button class="paginacao-btn" data-tipo="${tipo}" data-pagina="${paginaAtual + 1}" ${paginaAtual === totalPaginas ? 'disabled' : ''}>Próximo &raquo;</button>`;
+        
+        return html;
+    }
+
+    function handlePaginacaoClick(event) {
+        const target = event.target.closest('.paginacao-btn');
+        if (!target || target.disabled) return;
+
+        const tipo = target.dataset.tipo;
+        const novaPagina = parseInt(target.dataset.pagina, 10);
+
+        if (tipo === 'principais') {
+            paginaAtualPrincipais = novaPagina;
+        } else if (tipo === 'excluidas') {
+            paginaAtualExcluidas = novaPagina;
+        }
+
+        renderizarTabelaPaginada(tipo);
+    }
+
+    function criarHtmlDeTabela(dados, totais) {
+        if (dados.length === 0) return "<p style='text-align:center;'>Nenhuma nota nesta categoria.</p>";
+        let tableHTML = '<table><thead><tr>';
+        cabecalhoVenda.forEach(key => tableHTML += `<th>${mapeamentoColunas [key] || key}</th>`);
+        tableHTML += '</tr></thead><tbody>';
+        dados.forEach(({ info, itens, totais: totaisLinha }, index) => {
+            const statusNormalized = (info.status_venda || 'ok').toLowerCase().replace(' ', '-').normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const statusClass = `status-${statusNormalized}`;
+            const zebraClass = index % 2 === 0 ? 'linha-branca' : 'linha-cinza';
+            tableHTML += `<tr class="linha-venda ${statusClass} ${zebraClass}" data-nota-id="${info.numeroNota}">`;
+            cabecalhoVenda.forEach(col => {
+                let valor = ''; let classe = '';
+                if (info [col] !== undefined) {
+                if (col === 'dataEmissao') {
+                    const dataCrua = info [col];
+                    const partes = dataCrua.split('-');
+                    if (partes.length === 3) {
+                        valor = `${partes [2]}/${partes [1]}/${partes [0]}`;
+                    } else {
+                        valor = dataCrua || '';
+                    }
+                } else if (col === 'horaEmissao' && typeof info [col] === 'string') {
+                    valor = info [col].substring(0, 8);
+                } else if (col === 'status_venda') {
+                    const status = info [col];
+                    if (status === 'DEVOLUÇÃO') {
+                        valor = 'DEV';
+                    } else if (status === 'Excluída') {
+                        valor = 'EXCL';
+                    } else {
+                        valor = status || '';
+                    }
+                } else {
+                    valor = info [col] || '';
+                }
+            
+                if (col === 'numeroNota') classe = 'nota-clicavel';
+                } else {
+                    classe = 'col-numerica';
+                    if (col === 'Total Custo') valor = totaisLinha.custo.toFixed(2);
+                    else if (col === 'Total Bruto') valor = totaisLinha.bruto.toFixed(2);
+                    else if (col === 'Total Líquido') valor = totaisLinha.liquido.toFixed(2);
+                }
+                tableHTML += `<td class="${classe}">${valor}</td>`;
+            });
+            tableHTML += `</tr>`;
+            
+            const cabecalhoItensOrdenado = ["codigoProduto", "nome", "quantidadeProdutos", "valorTotalCusto", "valorTotalBruto", "valorTotalLiquido"];
+            let detalhesHTML = '<div class="tabela-interna"><table><thead><tr>';
+
+            if (info.status_venda === 'DEVOLUÇÃO') {
+                detalhesHTML = `
+                    <div class="detalhe-adicional" style="padding: 10px; font-weight: bold; background-color: #fef4f4; border-radius: 4px; border: 1px dashed #e74c3c;">
+                        Nota Origem: ${info.numeroNotaOrigem || 'Não informada'}
+                    </div>
+                ` + detalhesHTML;
+            }
+            
+            cabecalhoItensOrdenado.forEach(key => detalhesHTML += `<th>${mapeamentoColunas [key] || key}</th>`);
+            detalhesHTML += '</tr></thead><tbody>';
+            itens.forEach(item => {
+                detalhesHTML += '<tr>';
+                cabecalhoItensOrdenado.forEach(col => {
+                    const tdClass = col === 'nome' ? 'col-descricao' : '';
+                    detalhesHTML += `<td class="${tdClass}">${item [col] || ''}</td>`;
+                });
+                detalhesHTML += '</tr>';
+            });
+            detalhesHTML += '</tbody></table></div>';
+            tableHTML += `<tr class="detalhes-produtos ${zebraClass}"><td colspan="${cabecalhoVenda.length}">${detalhesHTML}</td></tr>`;
+        });
+        tableHTML += '</tbody>';
+        if(totais) {
+            const colspan = cabecalhoVenda.length - 3;
+            tableHTML += `
+                <tfoot>
+                    <tr>
+                        <td colspan="${colspan}"><strong>TOTAIS DO PERÍODO</strong></td>
+                        <td class="col-numerica">${totais.custo.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        <td class="col-numerica">${totais.bruto.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        <td class="col-numerica">${totais.liquido.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    </tr>
+                </tfoot>
+            `;
+        }
+        tableHTML += '</table>';
+        return tableHTML;
+    }
+    
+    function toggleDetails(event) {
+        const linhaVenda = event.target.closest('.linha-venda');
+        if (linhaVenda) {
+            const detalhesRow = linhaVenda.nextElementSibling;
+            if (detalhesRow && detalhesRow.classList.contains('detalhes-produtos')) {
+                linhaVenda.classList.toggle('linha-expandida');
+                detalhesRow.style.display = detalhesRow.style.display === 'table-row' ? 'none' : 'table-row';
+            }
+        }
+    }
+    
+    async function fetchAndUpdateAnaliseVendas() {
+        loadingOverlay.style.display = 'flex';
+
+        const dataInicio = document.getElementById('dataInicio').value;
+        const dataFim = document.getElementById('dataFim').value;
+
+        const url = new URL('/api/dados-dashboard', window.location.origin);
+        url.searchParams.set('dataInicio', dataInicio);
+        url.searchParams.set('dataFim', dataFim);
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error('Erro na rede ao buscar dados para análise de vendas');
+            }
+            
+            const dados = await response.json();
+
+            iniciarDashboard(dados);
+
+        } catch (error) {
+            console.error("Falha ao buscar dados para a análise de vendas:", error);
+            mainContent.style.display = 'none';
+            emptyState.style.display = 'flex';
+        } finally {
+            loadingOverlay.style.display = 'none';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        tabelaContainerPrincipais.addEventListener('click', toggleDetails);
+        tabelaContainerExcluidas.addEventListener('click', toggleDetails);
+
+        const contentBody = document.querySelector('body');
+        if(contentBody) {
+             contentBody.addEventListener('click', handlePaginacaoClick);
+        }
+
+        fetchAndUpdateAnaliseVendas();
+    });
+</script>
+{% endblock %}
