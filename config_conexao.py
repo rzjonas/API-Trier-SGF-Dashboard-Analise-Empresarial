@@ -43,6 +43,9 @@ VENDAS_ENDPOINT = f"{API_BASE_URL}/rest/integracao/venda/obter-todos-v1"        
 VENDAS_ALT_ENDPOINT = f"{API_BASE_URL}/rest/integracao/venda/obter-alterados-v1"  # Para buscar vendas criadas ou alteradas em um período (mais eficiente para atualizações).
 VENDAS_CANCEL_ENDPOINT = f"{API_BASE_URL}/rest/integracao/venda/cancelamento/obter-todos-v1" # Para buscar notas canceladas ou devolvidas.
 
+# Endpoint de Compras
+COMPRAS_ALT_ENDPOINT = f"{API_BASE_URL}/rest/integracao/compra/obter-alterados-v1" # NOVO ENDPOINT DE COMPRAS
+
 # Endpoint de Vendedores
 VENDEDOR_ENDPOINT = f"{API_BASE_URL}/rest/integracao/vendedor/obter-todos-v1"      # Para buscar a lista completa de vendedores.
 
@@ -91,6 +94,7 @@ SALES_FILE_DAYS_INTERVAL = 10
 # Intervalos de tempo (em minutos) para o orquestrador executar cada tarefa de sincronização
 # durante a operação contínua.
 INTERVALO_VENDAS = 10       # A cada 10 minutos, buscará novas vendas.
+INTERVALO_COMPRAS = 15      # A cada 15 minutos, buscará novas compras.
 INTERVALO_PRODUTOS = 15     # A cada 15 minutos, buscará produtos alterados.
 INTERVALO_ESTOQUE = 10      # A cada 10 minutos, buscará alterações de estoque.
 INTERVALO_VENDEDORES = 180  # A cada 180 minutos (3 horas), atualizará a lista de vendedores.

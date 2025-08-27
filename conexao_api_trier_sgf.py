@@ -577,9 +577,9 @@ def processar_e_salvar_dados_analiticos():
 
     # Realiza as junções (MERGE) para enriquecer os dados de venda com nomes de vendedor e produto.
     df_merged = pd.merge(df_vendas, df_vendedores, left_on='codigoVendedor', right_on='codigo', how='left')
-    df_merged['nomeVendedor'].fillna('Não encontrado', inplace=True)
+    df_merged['nomeVendedor'] = df_merged['nomeVendedor'].fillna('Não encontrado')
     df_final = pd.merge(df_merged, df_produtos, left_on='codigoProduto', right_on='codigo', how='left')
-    df_final['nome'].fillna('Produto não encontrado', inplace=True)
+    df_final['nome'] = df_final['nome'].fillna('Produto não encontrado')
     df_final.drop(columns=['codigo_x', 'codigo_y'], errors='ignore', inplace=True) # Remove colunas de código redundantes.
 
     # Garante que os valores de devolução sejam negativos para que as somas fiquem corretas.
@@ -622,7 +622,7 @@ def sincronizar_estoque():
 
     # Prepara os dados de estoque para a atualização.
     df_estoque.rename(columns={'codigoProduto': 'codigo'}, inplace=True)
-    df_estoque_update = df_estoque[['codigo', 'quantidadeEstoque']]
+    df_estoque_update = df_estoque[['codigo', 'quantidadeEstoque']].copy()
     
     df_produtos['codigo'] = df_produtos['codigo'].astype(str)
     df_estoque_update['codigo'] = df_estoque_update['codigo'].astype(str)
@@ -638,3 +638,91 @@ def sincronizar_estoque():
     df_produtos.reset_index(inplace=True) # Restaura o índice para o padrão.
     
     _escrever_para_db(df_produtos, NOME_TABELA, if_exists='replace')
+
+def realizar_carga_historica_compras():
+    """
+    Executa a carga completa do histórico de compras desde a data definida em
+    `HISTORICAL_START_DATE`. Utiliza o sistema de checkpoint para ser retomada em caso de falha.
+    """
+    NOME_TAREFA = 'carga_historica_compras'
+    NOME_TABELA = 'compras'
+    logging.info(f"\nIniciando carga completa das COMPRAS...")
+
+    estado = _carregar_estado(NOME_TAREFA)
+    ultima_data_concluida_str = estado.get('ultima_data_concluida')
+
+    data_inicio_historico = pd.to_datetime(cfg.HISTORICAL_START_DATE)
+    data_inicio_loop = data_inicio_historico
+    if ultima_data_concluida_str:
+        data_inicio_loop = datetime.strptime(ultima_data_concluida_str, '%Y-%m-%d') + timedelta(days=cfg.SALES_FILE_DAYS_INTERVAL)
+
+    data_fim_loop = datetime.now()
+    data_atual_periodo = data_inicio_loop
+    
+    df_existente = _ler_do_db(NOME_TABELA)
+
+    while data_atual_periodo <= data_fim_loop:
+        data_fim_periodo = data_atual_periodo + timedelta(days=cfg.SALES_FILE_DAYS_INTERVAL - 1)
+        if data_fim_periodo > data_fim_loop: data_fim_periodo = data_fim_loop
+        
+        data_inicio_str = data_atual_periodo.strftime('%Y-%m-%d')
+        data_fim_str = data_fim_periodo.strftime('%Y-%m-%d')
+        logging.info(f"\nProcessando período de compras de {data_inicio_str} a {data_fim_str}")
+        
+        params_periodo = {"dataInicial": data_inicio_str, "dataFinal": data_fim_str}
+        dados_compras = _buscar_dados_paginados(cfg.COMPRAS_ALT_ENDPOINT, params=params_periodo)
+        
+        if dados_compras is None:
+            logging.error("Falha ao buscar compras para o período. A tarefa será retomada na próxima execução.")
+            return
+
+        if not dados_compras:
+            logging.info("Nenhuma compra encontrada para o período.")
+        else:
+            df_compras_periodo = pd.DataFrame(dados_compras)
+            try:
+                # Junta os dados novos com os já existentes e remove duplicatas pela chave da nota
+                df_final = pd.concat([df_existente, df_compras_periodo]).drop_duplicates(subset=['numeroNotaFiscal'], keep='last')
+                _escrever_para_db(df_final, NOME_TABELA, if_exists='replace')
+                df_existente = df_final.copy()
+            except Exception as e:
+                logging.error(f"Falha ao salvar o período de compras no banco de dados. Erro: {e}", exc_info=True)
+                return
+        
+        _salvar_estado(NOME_TAREFA, {'ultima_data_concluida': data_atual_periodo.strftime('%Y-%m-%d')})
+        data_atual_periodo += timedelta(days=cfg.SALES_FILE_DAYS_INTERVAL)
+        
+    logging.info(f"Tarefa '{NOME_TAREFA}' concluída com sucesso.")
+    _limpar_estado(NOME_TAREFA)
+
+
+def atualizar_compras_recentes():
+    """
+    Busca as notas de compra do dia corrente que foram criadas ou alteradas.
+    Ideal para atualizações frequentes.
+    """
+    NOME_TABELA = 'compras'
+    logging.info("\nIniciando atualização de compras recentes...")
+    
+    df_existente = _ler_do_db(NOME_TABELA)
+    logging.info(f"Encontrados {len(df_existente)} registros existentes na tabela '{NOME_TABELA}'.")
+    
+    hoje_str = datetime.now().strftime('%Y-%m-%d')
+    params_alt = {"dataInicial": hoje_str, "dataFinal": hoje_str}
+    dados_alterados = _buscar_dados_paginados(cfg.COMPRAS_ALT_ENDPOINT, params=params_alt)
+
+    if not dados_alterados:
+        logging.info("Nenhuma compra nova ou alterada para processar.")
+        return
+        
+    df_alterados = pd.DataFrame(dados_alterados)
+    logging.info(f"{len(df_alterados)} compras novas/alteradas encontradas.")
+
+    # Lógica de atualização: remove as versões antigas das notas que foram alteradas
+    # e depois adiciona as novas versões.
+    ids_para_remover = df_alterados['numeroNotaFiscal'].unique()
+    df_intermediario = df_existente[~df_existente['numeroNotaFiscal'].isin(ids_para_remover)]
+    
+    # Junta o DataFrame original (sem as notas alteradas) com as novas versões.
+    df_final = pd.concat([df_intermediario, df_alterados]).drop_duplicates(subset=['numeroNotaFiscal'], keep='last')
+    _escrever_para_db(df_final, NOME_TABELA, if_exists='replace')

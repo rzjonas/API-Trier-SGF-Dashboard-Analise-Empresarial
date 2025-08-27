@@ -51,7 +51,7 @@ logger.addHandler(stream_handler)
 def _tabelas_iniciais_existem():
     """
     Verifica se o arquivo de banco de dados e as tabelas essenciais
-    ('vendas', 'produtos', 'vendedores') já existem.
+    ('vendas', 'produtos', 'vendedores', 'compras') já existem.
     Isso é crucial para determinar se a carga inicial de dados deve ser executada.
 
     Retorna:
@@ -67,8 +67,8 @@ def _tabelas_iniciais_existem():
         cursor = conn.cursor()
         
         # Executa uma consulta na tabela mestre do SQLite para listar as tabelas existentes.
-        # A consulta filtra pelos nomes das três tabelas que consideramos essenciais.
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('vendas', 'produtos', 'vendedores')")
+        # A consulta filtra pelos nomes das quatro tabelas que consideramos essenciais.
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('vendas', 'produtos', 'vendedores', 'compras')")
         
         # Extrai os nomes das tabelas encontradas do resultado da consulta.
         tabelas = [row[0] for row in cursor.fetchall()]
@@ -76,8 +76,8 @@ def _tabelas_iniciais_existem():
         # Fecha a conexão com o banco de dados.
         conn.close()
         
-        # Retorna True somente se as três tabelas essenciais foram encontradas.
-        return all(t in tabelas for t in ['vendas', 'produtos', 'vendedores'])
+        # Retorna True somente se as quatro tabelas essenciais foram encontradas.
+        return all(t in tabelas for t in ['vendas', 'produtos', 'vendedores', 'compras'])
         
     except Exception as e:
         # Em caso de qualquer erro durante a verificação, registra o problema e retorna False.
@@ -130,7 +130,14 @@ def main():
         except Exception as e:
             logging.error(f"Erro inesperado durante a carga histórica de vendas: {e}", exc_info=True)
 
+        try:
+            # Realiza a carga completa de todo o histórico de compras.
+            api.realizar_carga_historica_compras()
+        except Exception as e:
+            logging.error(f"Erro inesperado durante a carga histórica de compras: {e}", exc_info=True)
+
         logging.info("Carga inicial e processamento de todos os dados foram concluídos.")
+
     else:
         # Se as tabelas já existem, informa que a carga inicial será pulada.
         logging.info("Banco de dados e tabelas encontrados. Pulando para o ciclo de atualização contínua.")
@@ -143,6 +150,7 @@ def main():
     # que todas as tarefas sejam executadas na primeira iteração do loop.
     agora = datetime.now()
     proxima_exec_vendas = agora
+    proxima_exec_compras = agora
     proxima_exec_produtos = agora
     proxima_exec_estoque = agora
     proxima_exec_vendedores = agora
@@ -207,7 +215,20 @@ def main():
                 # Reagenda a próxima execução.
                 proxima_exec_vendedores = agora + timedelta(minutes=cfg.INTERVALO_VENDEDORES)
                 logging.info(f"AGENDADO: Próxima execução de vendedores para {proxima_exec_vendedores.strftime('%H:%M:%S')}")
-            
+
+            # 5. Tarefa de Compras
+            if agora >= proxima_exec_compras:
+                logging.info(f"\n--- {agora.strftime('%Y-%m-%d %H:%M:%S')} ---")
+                logging.info("EXECUTANDO: Atualização de COMPRAS")
+                try:
+                    # Busca apenas as compras recentes (alteradas/novas) e atualiza o banco.
+                    api.atualizar_compras_recentes()
+                except Exception as e:
+                    logging.error(f"Erro inesperado no ciclo de compras: {e}", exc_info=True)
+                # Reagenda a próxima execução desta tarefa.
+                proxima_exec_compras = agora + timedelta(minutes=cfg.INTERVALO_COMPRAS)
+                logging.info(f"AGENDADO: Próxima execução de compras para {proxima_exec_compras.strftime('%H:%M:%S')}")
+
             # Pausa a execução por 60 segundos antes de verificar novamente os agendamentos.
             # Isso evita que o loop consuma 100% do processador.
             time.sleep(60)
