@@ -116,7 +116,11 @@
 
 {% block scripts %}
 <script>
+// Executa o script quando o DOM estiver completamente carregado.
 document.addEventListener('DOMContentLoaded', () => {
+    
+    // --- REFERÊNCIAS AOS ELEMENTOS DO DOM ---
+    // Agrupa todas as referências a elementos HTML em um único objeto para fácil acesso.
     const elements = {
         mainContent: document.getElementById('mainContent'),
         emptyState: document.getElementById('emptyState'),
@@ -132,56 +136,86 @@ document.addEventListener('DOMContentLoaded', () => {
         loadingOverlay: document.getElementById('loadingOverlay')
     };
     
+    // --- VARIÁVEIS GLOBAIS ---
+    // Variáveis para armazenar as instâncias dos gráficos Chart.js.
     let chartABC, chartTopReceita, chartTopQtd;
     
+    // Constante para definir a quantidade de itens por página na tabela.
     const ITENS_POR_PAGINA = 50;
+    // Variável de estado para controlar a página atual da tabela.
     let paginaAtualProdutos = 1;
+    // Array para armazenar todos os produtos recebidos da API, para permitir a paginação no lado do cliente.
     let todosOsProdutos = [];
 
+    /**
+     * Função auxiliar para formatar um valor numérico como moeda brasileira (BRL).
+     * @param {number} valor - O número a ser formatado.
+     * @returns {string} A string formatada, ex: "R$ 1.234,56".
+     */
     const formatarMoeda = (valor) => {
         return (valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     };
 
+    /**
+     * Função assíncrona principal que busca os dados da API e coordena a renderização da página.
+     */
     async function carregarDadosProdutos() {
+        // Exibe o overlay de carregamento.
         elements.loadingOverlay.style.display = 'flex';
         
+        // Obtém as datas dos filtros globais.
         const dataInicio = document.getElementById('dataInicio').value;
         const dataFim = document.getElementById('dataFim').value;
         
+        // Constrói a URL da API com os parâmetros de data.
         const url = `/api/dados-produtos-estoque?dataInicio=${dataInicio}&dataFim=${dataFim}`;
 
         try {
+            // Realiza a requisição à API.
             const response = await fetch(url);
             if (!response.ok) throw new Error(`Erro na requisição: ${response.statusText}`);
             
+            // Converte a resposta em JSON.
             const data = await response.json();
 
+            // Verifica se não há dados ou se a tabela de produtos está vazia.
             if (!data || !data.tabela_produtos || data.tabela_produtos.length === 0) {
+                // Se não houver dados, esconde o conteúdo principal e mostra a mensagem de "vazio".
                 elements.mainContent.style.display = 'none';
                 elements.emptyState.style.display = 'flex';
             } else {
+                // Se houver dados, exibe o conteúdo e esconde a mensagem de "vazio".
                 elements.mainContent.style.display = 'block';
                 elements.emptyState.style.display = 'none';
 
+                // Chama as funções para atualizar cada parte da página com os novos dados.
                 atualizarCards(data.indicadores);
                 renderizarGraficoABC(data.curva_abc);
                 renderizarGraficosTop(data.graficos_top);
                 
+                // Armazena todos os dados da tabela para paginação e reseta para a primeira página.
                 todosOsProdutos = data.tabela_produtos;
                 paginaAtualProdutos = 1;
 
+                // Renderiza a tabela com a primeira página de dados.
                 renderizarTabelaPaginada();
             }
 
         } catch (error) {
+            // Em caso de erro, exibe no console e mostra a tela de "vazio".
             console.error("Falha ao carregar dados de produtos e estoque:", error);
             elements.mainContent.style.display = 'none';
             elements.emptyState.style.display = 'flex';
         } finally {
+            // Garante que o overlay de carregamento seja escondido ao final da operação.
             elements.loadingOverlay.style.display = 'none';
         }
     }
 
+    /**
+     * Atualiza os valores nos cards de indicadores na parte superior da página.
+     * @param {object} indicadores - Objeto contendo os KPIs de produtos e estoque.
+     */
     function atualizarCards(indicadores) {
         elements.cardProdutosAtivos.textContent = (indicadores.produtos_ativos || 0).toLocaleString('pt-BR');
         elements.cardProdutosSemVenda.textContent = (indicadores.produtos_sem_venda || 0).toLocaleString('pt-BR');
@@ -192,37 +226,61 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.cardEstoqueOtimo.textContent = (indicadores.estoque_otimo || 0).toLocaleString('pt-BR');
     }
 
+    /**
+     * Renderiza o gráfico de Curva ABC (tipo rosca).
+     * Destrói qualquer instância anterior do gráfico para evitar problemas de renderização.
+     * @param {object} dados - Objeto com 'labels' e 'data' para o gráfico.
+     */
     function renderizarGraficoABC(dados) {
         const ctx = document.getElementById('graficoCurvaABC').getContext('2d');
+        // Se já existe um gráfico, destrói-o antes de criar um novo.
         if (chartABC) chartABC.destroy();
         chartABC = new Chart(ctx, { type: 'doughnut', data: { labels: dados.labels, datasets: [{ label: 'Nº de Produtos por Categoria', data: dados.data, backgroundColor: ['#2ecc71', '#3498db', '#f1c40f'], hoverOffset: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } } } });
     }
 
+    /**
+     * Renderiza os gráficos de Top 10 produtos por receita e por quantidade (barras horizontais).
+     * @param {object} dados - Objeto contendo os dados para ambos os gráficos 'top_receita' e 'top_qtd'.
+     */
     function renderizarGraficosTop(dados) {
+        // Renderiza o gráfico de Top 10 por Receita.
         const ctxReceita = document.getElementById('graficoTopReceita').getContext('2d');
         if (chartTopReceita) chartTopReceita.destroy();
         chartTopReceita = new Chart(ctxReceita, { type: 'bar', data: { labels: dados.top_receita.labels, datasets: [{ label: 'Receita (R$)', data: dados.top_receita.data, backgroundColor: '#1a3b5d', }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
         
+        // Renderiza o gráfico de Top 10 por Quantidade.
         const ctxQtd = document.getElementById('graficoTopQtd').getContext('2d');
         if (chartTopQtd) chartTopQtd.destroy();
         chartTopQtd = new Chart(ctxQtd, { type: 'bar', data: { labels: dados.top_qtd.labels, datasets: [{ label: 'Quantidade Vendida', data: dados.top_qtd.data, backgroundColor: '#2c537e', }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
     }
 
+    /**
+     * Controla a renderização da tabela, fatiando os dados da página atual e chamando as funções de renderização.
+     */
     function renderizarTabelaPaginada() {
+        // Calcula os índices de início e fim para os dados da página atual.
         const inicio = (paginaAtualProdutos - 1) * ITENS_POR_PAGINA;
         const fim = inicio + ITENS_POR_PAGINA;
         const dadosDaPagina = todosOsProdutos.slice(inicio, fim);
 
+        // Chama a função para renderizar as linhas da tabela.
         renderizarTabelaProdutos(dadosDaPagina);
+        // Gera e insere o HTML dos controles de paginação.
         elements.paginacaoContainer.innerHTML = criarControlesPaginacao();
     }
 
+    /**
+     * Gera e insere o HTML para as linhas do corpo da tabela de produtos.
+     * @param {Array} produtosDaPagina - Array com os objetos de produto para a página atual.
+     */
     function renderizarTabelaProdutos(produtosDaPagina) {
+        // Se não houver produtos para a página, exibe uma mensagem na tabela.
         if (produtosDaPagina.length === 0) {
             elements.tabelaProdutosBody.innerHTML = '<tr><td colspan="8">Nenhum dado de venda encontrado para o período.</td></tr>';
             return;
         }
 
+        // Constrói a string HTML para todas as linhas da tabela.
         let tableHTML = '';
         produtosDaPagina.forEach(p => {
             tableHTML += `
@@ -239,14 +297,22 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         });
         
+        // Insere o HTML gerado no corpo da tabela.
         elements.tabelaProdutosBody.innerHTML = tableHTML;
     }
 
+    /**
+     * Gera o HTML para os botões de controle da paginação.
+     * @returns {string} O HTML dos controles de paginação.
+     */
     function criarControlesPaginacao() {
         const totalPaginas = Math.ceil(todosOsProdutos.length / ITENS_POR_PAGINA);
-        if (totalPaginas <= 1) return '';
+        if (totalPaginas <= 1) return ''; // Não mostra paginação se houver apenas uma página.
 
+        // Botão "Anterior".
         let html = `<button class="paginacao-btn" data-pagina="${paginaAtualProdutos - 1}" ${paginaAtualProdutos === 1 ? 'disabled' : ''}>&laquo; Anterior</button>`;
+        
+        // Lógica para renderizar os números das páginas, incluindo "..." para longas listas.
         for (let i = 1; i <= totalPaginas; i++) {
              if (i === 1 || i === totalPaginas || (i >= paginaAtualProdutos - 2 && i <= paginaAtualProdutos + 2)) {
                 html += `<button class="paginacao-btn ${i === paginaAtualProdutos ? 'active' : ''}" data-pagina="${i}">${i}</button>`;
@@ -254,20 +320,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 html += `<span>...</span>`;
              }
         }
+        
+        // Botão "Próximo".
         html += `<button class="paginacao-btn" data-pagina="${paginaAtualProdutos + 1}" ${paginaAtualProdutos === totalPaginas ? 'disabled' : ''}>Próximo &raquo;</button>`;
         return html;
     }
 
+    /**
+     * Manipulador de eventos para os cliques nos botões de paginação.
+     * @param {Event} event - O objeto do evento de clique.
+     */
     function handlePaginacaoClick(event) {
         const target = event.target.closest('.paginacao-btn');
-        if (!target || target.disabled) return;
+        if (!target || target.disabled) return; // Ignora cliques inválidos.
 
+        // Atualiza a página atual e re-renderiza a tabela.
         paginaAtualProdutos = parseInt(target.dataset.pagina, 10);
         renderizarTabelaPaginada();
     }
     
+    // --- INICIALIZAÇÃO ---
+    // Adiciona o ouvinte de evento ao container da paginação (usando delegação de eventos).
     elements.paginacaoContainer.addEventListener('click', handlePaginacaoClick);
 
+    // Chama a função de carregamento de dados pela primeira vez ao carregar a página.
     carregarDadosProdutos();
 });
 </script>

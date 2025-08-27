@@ -19,7 +19,7 @@ NÃO MEXER EM MAIS NADA, SOMENTE DEPOIS MELHORAR COM MAIS INFORMAÇÕES IMPORTAN
 
 
 Página 4: Financeiro & Compras
-Objetivo Principal: Fornecer uma visão clara sobre o fluxo de caixa gerado pelas vendas, métodos de pagamento e, futuramente, os custos com compras.
+Objetivo Principal: Fornecer uma visão clara sobre o fluxo de caixa que envolve um financeiro detalhado, e também os custos com compras, 
 
 Componentes Sugeridos:
 
@@ -29,9 +29,7 @@ Receita por Meio de Pagamento: Cards separados para Dinheiro, Cartão de Crédit
 
 Total de Devoluções (R$): Valor total reembolsado aos clientes.
 
-Valor a Receber: Soma das vendas feitas a prazo/fiado.
-
-Custo Total de Compras: (Quando houver dados de compra) Valor total gasto com fornecedores.
+Custo Total de Compras: Valor total gasto com fornecedores.
 
 Gráficos e Tabelas:
 
@@ -41,15 +39,10 @@ O que mostra: Barras para Receitas e Devoluções por dia/semana.
 
 Utilidade: Acompanhamento da saúde financeira diária.
 
-Análise de Condições de Pagamento (Gráfico de Pizza):
+Ranking de Fornecedores: Tabela mostrando os principais fornecedores por valor de compra.
 
-O que mostra: Percentual da receita vindo de "À Vista", "30 dias", "Cartão 2x", etc.
+e precisa de mais ideias para adicionar com as informações novas que já temos nos endpoints de compras e fornecedores
 
-Utilidade: Entender o impacto das condições de pagamento no capital de giro.
-
-Ranking de Fornecedores: (Quando houver dados de compra) Tabela mostrando os principais fornecedores por valor de compra.
-
-Tabela de Contas a Receber: Detalhamento das vendas a prazo que ainda não foram quitadas.
 
 
 

@@ -1,94 +1,172 @@
+/* ==========================================================================
+   Estilos para a Página de Análise de Vendas
+   ========================================================================== */
+
+/* Define o layout em grade para a seção de gráficos da análise. */
 .graficos-grid-analise {
+    /* Ativa o modo de exibição em grade (Grid). */
     display: grid;
+    /* Cria duas colunas com largura mínima de 350px e máxima de 1fr (fração do espaço disponível). */
     grid-template-columns: repeat(2, minmax(350px, 1fr));
+    /* Define um espaçamento de 25px entre os elementos da grade. */
     gap: 25px;
+    /* Adiciona uma margem inferior de 25px para espaçamento. */
     margin-bottom: 25px;
 }
+
+/* Estiliza o contêiner individual de cada gráfico na página de análise. */
 .grafico-container-analise {
+    /* Define a cor de fundo do contêiner. */
     background-color: #fdfdfd;
+    /* Adiciona um preenchimento interno de 20px. */
     padding: 20px;
+    /* Arredonda as bordas do contêiner. */
     border-radius: 8px;
+    /* Adiciona uma sombra sutil para dar profundidade. */
     box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    /* Define uma borda sólida e clara. */
     border: 1px solid #eef2f7;
+    /* Fixa a altura do contêiner do gráfico em 350px. */
     height: 350px;
+    /* Utiliza Flexbox para organizar o conteúdo interno (título, gráfico) em coluna. */
     display: flex;
     flex-direction: column;
 }
+
+/* Estiliza o título (h3) dentro de cada contêiner de gráfico. */
 .grafico-container-analise h3 {
+    /* Centraliza o texto do título. */
     text-align: center;
+    /* Remove a margem superior padrão. */
     margin-top: 0;
+    /* Define uma margem inferior de 15px. */
     margin-bottom: 15px;
+    /* Define a cor do texto do título. */
     color: #1a3b5d;
+    /* Define o peso da fonte como semi-negrito. */
     font-weight: 600;
 }
 
+/* Ajustes de responsividade para telas menores (tablets e celulares). */
 @media (max-width: 768px) {
+    /* Modifica a grade de gráficos para ter apenas uma coluna em telas com largura máxima de 768px. */
     .graficos-grid-analise {
         grid-template-columns: 1fr;
     }
 }
 
+/* Estiliza o título (h4) dentro dos cartões de resumo. */
 .resumo-card h4 {
+    /* Utiliza Flexbox para alinhar o título e outros elementos (como ícones). */
     display: flex;
+    /* Centraliza os itens horizontalmente. */
     justify-content: center;
+    /* Centraliza os itens verticalmente. */
     align-items: center;
+    /* Adiciona um espaço de 8px entre os itens (ex: texto e ícone). */
     gap: 8px;
 }
 
+/* ==========================================================================
+   Estilos do Tooltip (dica de ferramenta)
+   ========================================================================== */
+
+/* Contêiner que envolve o ícone de informação e o texto da dica. */
 .tooltip-container {
+    /* Define o posicionamento relativo para que o texto do tooltip possa ser posicionado absolutamente a ele. */
     position: relative;
+    /* Faz o contêiner se comportar como um elemento de linha, mas com propriedades de bloco. */
     display: inline-block;
 }
 
+/* Estiliza o ícone de informação "i". */
 .info-icon {
+    /* Define uma fonte monoespaçada para o ícone. */
     font-family: monospace;
+    /* Deixa o texto do ícone em negrito. */
     font-weight: bold;
+    /* Define a cor do ícone. */
     color: #5dade2;
+    /* Cria uma borda sólida ao redor do ícone. */
     border: 1.5px solid #aed6f1;
+    /* Torna o contêiner do ícone perfeitamente circular. */
     border-radius: 50%;
+    /* Define a largura do ícone. */
     width: 16px;
+    /* Define a altura do ícone. */
     height: 16px;
+    /* Utiliza Flexbox para centralizar o caractere "i" dentro do círculo. */
     display: inline-flex;
     justify-content: center;
     align-items: center;
+    /* Define o tamanho da fonte para o caractere "i". */
     font-size: 12px;
+    /* Muda o cursor para um ponto de interrogação, indicando ajuda. */
     cursor: help;
 }
 
+/* Estiliza a caixa de texto do tooltip que aparece ao passar o mouse. */
 .tooltip-text {
+    /* Esconde o tooltip por padrão. */
     visibility: hidden;
+    /* Define uma largura fixa para a caixa de texto. */
     width: 280px;
+    /* Define a cor de fundo. */
     background-color: #34495e;
+    /* Define a cor do texto. */
     color: #fff;
+    /* Alinha o texto à esquerda. */
     text-align: left;
+    /* Arredonda as bordas da caixa. */
     border-radius: 6px;
+    /* Adiciona preenchimento interno. */
     padding: 10px;
+    /* Define o posicionamento absoluto em relação ao .tooltip-container. */
     position: absolute;
+    /* Garante que o tooltip fique acima de outros elementos da página. */
     z-index: 10;
+    /* Posiciona o tooltip acima do ícone. */
     bottom: 150%;
+    /* Centraliza horizontalmente em relação ao ícone. */
     left: 50%;
-    margin-left: -140px;
+    margin-left: -140px; /* Metade da largura para um centramento preciso */
+    /* Define a opacidade inicial como 0 para criar um efeito de fade-in. */
     opacity: 0;
+    /* Adiciona uma transição suave para o efeito de opacidade. */
     transition: opacity 0.3s ease;
-
+    /* Define o tamanho da fonte do texto. */
     font-size: 12px;
+    /* Define o peso da fonte. */
     font-weight: 500;
+    /* Define a altura da linha para melhor legibilidade. */
     line-height: 1.4;
+    /* Garante que o texto não fique em maiúsculas. */
     text-transform: none;
 }
 
+/* Cria a seta (triângulo) na parte inferior do tooltip. */
 .tooltip-text::after {
+    /* É necessário para que o pseudo-elemento seja gerado. */
     content: "";
+    /* Posiciona a seta de forma absoluta em relação ao .tooltip-text. */
     position: absolute;
+    /* Coloca a seta na parte inferior da caixa de texto. */
     top: 100%;
+    /* Centraliza a seta horizontalmente. */
     left: 50%;
     margin-left: -5px;
+    /* Define o tamanho da seta. */
     border-width: 5px;
+    /* Define o estilo da borda. */
     border-style: solid;
+    /* Técnica para criar um triângulo usando bordas transparentes. */
     border-color: #34495e transparent transparent transparent;
 }
 
+/* Controla a exibição do tooltip ao passar o mouse sobre o contêiner. */
 .tooltip-container:hover .tooltip-text {
+    /* Torna o texto do tooltip visível. */
     visibility: visible;
+    /* Altera a opacidade para 1, ativando o efeito de fade-in. */
     opacity: 1;
 }

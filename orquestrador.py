@@ -51,7 +51,7 @@ logger.addHandler(stream_handler)
 def _tabelas_iniciais_existem():
     """
     Verifica se o arquivo de banco de dados e as tabelas essenciais
-    ('vendas', 'produtos', 'vendedores', 'compras') já existem.
+    ('vendas', 'produtos', 'vendedores', 'compras', 'fornecedores') já existem.
     Isso é crucial para determinar se a carga inicial de dados deve ser executada.
 
     Retorna:
@@ -66,18 +66,22 @@ def _tabelas_iniciais_existem():
         conn = sqlite3.connect(cfg.DATABASE_FILE)
         cursor = conn.cursor()
         
-        # Executa uma consulta na tabela mestre do SQLite para listar as tabelas existentes.
-        # A consulta filtra pelos nomes das quatro tabelas que consideramos essenciais.
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('vendas', 'produtos', 'vendedores', 'compras')")
+        # Lista de tabelas essenciais para a aplicação.
+        tabelas_essenciais = ['vendas', 'produtos', 'vendedores', 'compras', 'fornecedores']
+        
+        # Constrói a consulta para verificar a existência de todas as tabelas de uma vez.
+        placeholders = ', '.join('?' for _ in tabelas_essenciais)
+        query = f"SELECT name FROM sqlite_master WHERE type='table' AND name IN ({placeholders})"
+        cursor.execute(query, tabelas_essenciais)
         
         # Extrai os nomes das tabelas encontradas do resultado da consulta.
-        tabelas = [row[0] for row in cursor.fetchall()]
+        tabelas_encontradas = {row[0] for row in cursor.fetchall()}
         
         # Fecha a conexão com o banco de dados.
         conn.close()
         
-        # Retorna True somente se as quatro tabelas essenciais foram encontradas.
-        return all(t in tabelas for t in ['vendas', 'produtos', 'vendedores', 'compras'])
+        # Retorna True somente se o conjunto de tabelas encontradas for igual ao conjunto de tabelas essenciais.
+        return set(tabelas_essenciais) == tabelas_encontradas
         
     except Exception as e:
         # Em caso de qualquer erro durante a verificação, registra o problema e retorna False.
@@ -121,6 +125,12 @@ def main():
             api.sincronizar_vendedores()
         except Exception as e:
             logging.error(f"Erro inesperado durante a sincronização de vendedores: {e}", exc_info=True)
+
+        try:
+            # (NOVO) Realiza a carga inicial de fornecedores.
+            api.sincronizar_fornecedores_carga_inicial()
+        except Exception as e:
+            logging.error(f"Erro inesperado durante a carga inicial de fornecedores: {e}", exc_info=True)
             
         try:
             # Realiza a carga completa de todo o histórico de vendas.
@@ -154,6 +164,7 @@ def main():
     proxima_exec_produtos = agora
     proxima_exec_estoque = agora
     proxima_exec_vendedores = agora
+    proxima_exec_fornecedores = agora # (NOVO)
     
     try:
         # Loop infinito que mantém o orquestrador rodando.
@@ -228,6 +239,19 @@ def main():
                 # Reagenda a próxima execução desta tarefa.
                 proxima_exec_compras = agora + timedelta(minutes=cfg.INTERVALO_COMPRAS)
                 logging.info(f"AGENDADO: Próxima execução de compras para {proxima_exec_compras.strftime('%H:%M:%S')}")
+            
+            # 6. Tarefa de Fornecedores (NOVO)
+            if agora >= proxima_exec_fornecedores:
+                logging.info(f"\n--- {agora.strftime('%Y-%m-%d %H:%M:%S')} ---")
+                logging.info("EXECUTANDO: Atualização de FORNECEDORES")
+                try:
+                    # Busca apenas os fornecedores recentes (alterados/novos) e atualiza o banco.
+                    api.atualizar_fornecedores_recentes()
+                except Exception as e:
+                    logging.error(f"Erro inesperado no ciclo de fornecedores: {e}", exc_info=True)
+                # Reagenda a próxima execução desta tarefa.
+                proxima_exec_fornecedores = agora + timedelta(minutes=cfg.INTERVALO_FORNECEDORES)
+                logging.info(f"AGENDADO: Próxima execução de fornecedores para {proxima_exec_fornecedores.strftime('%H:%M:%S')}")
 
             # Pausa a execução por 60 segundos antes de verificar novamente os agendamentos.
             # Isso evita que o loop consuma 100% do processador.

@@ -47,45 +47,69 @@
 
 {% block scripts %}
 <script>
+    // --- DECLARAÇÃO DE VARIÁVEIS GLOBAIS E REFERÊNCIAS DE ELEMENTOS ---
+
+    // Referências aos principais elementos da interface para manipulação.
     const loadingOverlay = document.getElementById('loadingOverlay');
     const mainContent = document.getElementById('mainContent');
     const emptyState = document.getElementById('emptyState');
+
+    // Objeto para armazenar as instâncias dos gráficos Chart.js, permitindo destruí-las antes de recriá-las.
     let charts = {};
 
+    /**
+     * Função assíncrona principal que busca os dados do dashboard na API e coordena a atualização da interface.
+     */
     async function fetchAndUpdateDashboard() {
+        // Exibe a tela de carregamento enquanto os dados são buscados.
         loadingOverlay.style.display = 'flex';
         
+        // Obtém os valores de data de início e fim dos filtros da página.
         const dataInicio = document.getElementById('dataInicio').value;
         const dataFim = document.getElementById('dataFim').value;
         
+        // Constrói a URL para a chamada da API, incluindo os parâmetros de data.
         const url = new URL('/api/dados-dashboard-geral', window.location.origin);
         url.searchParams.set('dataInicio', dataInicio);
         url.searchParams.set('dataFim', dataFim);
         
         try {
+            // Realiza a chamada fetch para a API.
             const response = await fetch(url);
+            // Se a resposta não for bem-sucedida (status diferente de 2xx), lança um erro.
             if (!response.ok) throw new Error('Erro na rede ao buscar dados do dashboard');
             
+            // Converte a resposta em formato JSON.
             const dados = await response.json();
 
+            // Verifica se o objeto de dados está vazio ou se falta um KPI essencial.
             if (Object.keys(dados).length === 0 || !dados.kpis) {
+                // Se não houver dados, esconde o conteúdo principal e mostra a mensagem de "Nenhum dado encontrado".
                 mainContent.style.display = 'none';
                 emptyState.style.display = 'flex';
             } else {
+                // Se houver dados, exibe o conteúdo principal e esconde a mensagem de "vazio".
                 mainContent.style.display = 'block';
                 emptyState.style.display = 'none';
+                // Chama a função que renderiza todos os componentes do dashboard com os dados recebidos.
                 renderDashboard(dados);
             }
 
         } catch (error) {
+            // Em caso de erro na busca, exibe o erro no console e mostra a tela de "vazio".
             console.error("Falha ao buscar dados para o dashboard:", error);
             mainContent.style.display = 'none';
             emptyState.style.display = 'flex';
         } finally {
+            // Independentemente de sucesso ou falha, esconde a tela de carregamento.
             loadingOverlay.style.display = 'none';
         }
     }
 
+    /**
+     * Função central que chama todas as funções de renderização para cada componente do dashboard.
+     * @param {object} dados - O objeto completo com todos os dados do dashboard.
+     */
     function renderDashboard(dados) {
         renderKpis(dados.kpis);
         renderComparativo(dados.comparativo);
@@ -95,10 +119,19 @@
         renderTopVendedoresChart(dados.top_vendedores);
     }
     
+    /**
+     * Função auxiliar para formatar um número como moeda no padrão brasileiro (BRL).
+     * @param {number} value - O valor numérico a ser formatado.
+     * @returns {string} A string formatada, ex: "R$ 1.234,56".
+     */
     function formatCurrency(value) {
         return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     }
 
+    /**
+     * Renderiza os cartões de KPIs (Indicadores Chave de Performance).
+     * @param {object} kpis - Objeto contendo os valores de 'ticket_medio' e 'ipt'.
+     */
     function renderKpis(kpis) {
         document.getElementById('kpiTicketMedio').innerHTML = `
             <h4>Ticket Médio
@@ -119,16 +152,23 @@
             <p>${kpis.ipt.toFixed(2)}</p>`;
     }
 
+    /**
+     * Renderiza o componente de comparação de receita com o período anterior.
+     * @param {object} comparativo - Objeto contendo o valor percentual e a diferença de valor.
+     */
     function renderComparativo(comparativo) {
         const percentual = comparativo.percentual;
+        // Define a cor e o símbolo (seta para cima/baixo) com base no valor do percentual.
         const corBox = percentual >= 0 ? '#2ecc71' : '#e74c3c';
         const simbolo = percentual >= 0 ? '▲' : '▼';
         const textoPercentual = `${simbolo} ${percentual.toFixed(2)}%`;
         
         const diferencaValor = comparativo.diferenca_valor;
+        // Define a cor do texto do valor absoluto da diferença.
         const corValor = diferencaValor >= 0 ? '#2ecc71' : '#e74c3c';
         const textoDiferenca = formatCurrency(diferencaValor); 
         
+        // Monta o HTML do componente.
         document.getElementById('comparativoVendas').innerHTML = `
             <span style="font-weight: bold; color: #34495e; display: inline-flex; align-items: center; gap: 8px;">
                 Receita (vs. Período Anterior): 
@@ -145,18 +185,27 @@
             </span>`;
     }
 
+    /**
+     * Destrói uma instância de gráfico Chart.js existente para evitar sobreposição e vazamento de memória.
+     * @param {string} chartId - O ID do elemento canvas do gráfico a ser destruído.
+     */
     function destroyChart(chartId) {
         if (charts[chartId]) {
             charts[chartId].destroy();
         }
     }
 
+    /**
+     * Renderiza o gráfico de linha da evolução da receita.
+     * @param {object} evolucao - Objeto com 'labels' (datas) e 'data' (valores).
+     */
     function renderEvolucaoChart(evolucao) {
-        destroyChart('evolucaoReceitaChart');
+        destroyChart('evolucaoReceitaChart'); // Garante que o gráfico anterior seja removido.
         const ctx = document.getElementById('evolucaoReceitaChart').getContext('2d');
         charts['evolucaoReceitaChart'] = new Chart(ctx, {
             type: 'line',
             data: {
+                // Mapeia as datas do formato AAAA-MM-DD para DD/MM/AAAA para exibição.
                 labels: evolucao.labels.map(data => {
                     const [ano, mes, dia] = data.split('-');
                     return `${dia}/${mes}/${ano}`;
@@ -167,21 +216,21 @@
                     borderColor: '#3498db',
                     backgroundColor: 'rgba(52, 152, 219, 0.1)',
                     fill: true,
-                    tension: 0.1
+                    tension: 0.1 // Deixa a linha levemente curvada.
                 }]
             },
             options: { 
                 responsive: true, 
                 maintainAspectRatio: false,
-                layout: {
-                    padding: {
-                        bottom: 20
-                    }
-                }
+                layout: { padding: { bottom: 20 } }
             }
         });
     }
 
+    /**
+     * Renderiza o gráfico de barras horizontais do Top 5 grupos de produtos.
+     * @param {object} topCategorias - Objeto com 'labels' (nomes dos grupos) e 'data' (valores).
+     */
     function renderTopCategoriasChart(topCategorias) {
         destroyChart('topCategoriasChart');
         const ctx = document.getElementById('topCategoriasChart').getContext('2d');
@@ -196,16 +245,20 @@
                 }]
             },
             options: { 
-                indexAxis: 'y', 
+                indexAxis: 'y', // Define o gráfico como de barras horizontais.
                 responsive: true, 
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: false }
+                    legend: { display: false } // Esconde a legenda, pois a informação já está no título.
                 }
             }
         });
     }
     
+    /**
+     * Renderiza o gráfico de barras horizontais do Top 5 vendedores.
+     * @param {object} topVendedores - Objeto com 'labels' (nomes dos vendedores) e 'data' (valores).
+     */
     function renderTopVendedoresChart(topVendedores) {
         destroyChart('topVendedoresChart');
         const ctx = document.getElementById('topVendedoresChart').getContext('2d');
@@ -220,47 +273,62 @@
                 }]
             },
             options: { 
-                indexAxis: 'y',
+                indexAxis: 'y', // Define o gráfico como de barras horizontais.
                 responsive: true, 
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: false }
+                    legend: { display: false } // Esconde a legenda.
                 }
             }
         });
     }
 
+    /**
+     * Renderiza o mapa de calor de vendas por dia da semana e hora.
+     * @param {object} mapa - Objeto aninhado com dia da semana, hora e valor da venda.
+     */
     function renderMapaCalor(mapa) {
         const container = document.getElementById('mapaCalor');
+        // Extrai todos os valores de vendas para encontrar o valor máximo.
         let valores = [];
         Object.values(mapa).forEach(horas => {
             valores.push(...Object.values(horas));
         });
+        // O valor máximo é usado para calcular a intensidade da cor de cada célula.
         const maxValor = Math.max(...valores.filter(v => v > 0));
 
+        // Função interna que retorna uma cor com base no valor da venda.
         const getColor = (value) => {
-            if (value === 0) return '#f8f9fa';
+            if (value === 0) return '#f8f9fa'; // Cor neutra para valores zero.
+            // Calcula a intensidade (0 a 1) do valor em relação ao máximo.
             const intensidade = Math.min(value / maxValor, 1);
+            // Interpola linearmente entre uma cor clara (início) e uma escura (fim).
             const r = Math.floor(173 + (26 - 173) * intensidade);
             const g = Math.floor(216 + (59 - 216) * intensidade);
             const b = Math.floor(230 + (93 - 230) * intensidade);
             return `rgb(${r},${g},${b})`;
         };
 
+        // Inicia a construção da tabela HTML.
         let html = '<table class="mapa-calor-table"><thead><tr><th>Hora</th>';
+        // Cria os cabeçalhos das horas (00 a 23).
         for (let i = 0; i < 24; i++) {
             html += `<th>${i.toString().padStart(2, '0')}</th>`;
         }
         html += '</tr></thead><tbody>';
 
+        // Garante a ordem correta dos dias da semana.
         const diasOrdenados = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'];
         
+        // Itera sobre os dias ordenados para criar as linhas da tabela.
         diasOrdenados.forEach(dia => {
             if (mapa[dia]) {
                 const horas = mapa[dia];
-                html += `<tr><td>${dia.substring(0,3)}</td>`;
+                html += `<tr><td>${dia.substring(0,3)}</td>`; // Rótulo do dia (ex: "Seg").
+                // Cria uma célula para cada hora do dia.
                 for (let i = 0; i < 24; i++) {
                     const valor = horas[i] || 0;
+                    // Define a cor de fundo com base no valor e insere o valor formatado dentro de um span (para tooltips CSS).
                     html += `<td style="background-color: ${getColor(valor)};"><span>${formatCurrency(valor)}</span></td>`;
                 }
                 html += '</tr>';
@@ -268,9 +336,13 @@
         });
 
         html += '</tbody></table>';
+        // Insere o HTML gerado no container do mapa de calor.
         container.innerHTML = html;
     }
 
+    // --- EVENT LISTENER ---
+
+    // Adiciona um ouvinte de evento que dispara a busca de dados assim que a página é totalmente carregada.
     document.addEventListener('DOMContentLoaded', fetchAndUpdateDashboard);
 </script>
 {% endblock %}

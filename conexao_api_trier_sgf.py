@@ -726,3 +726,60 @@ def atualizar_compras_recentes():
     # Junta o DataFrame original (sem as notas alteradas) com as novas versões.
     df_final = pd.concat([df_intermediario, df_alterados]).drop_duplicates(subset=['numeroNotaFiscal'], keep='last')
     _escrever_para_db(df_final, NOME_TABELA, if_exists='replace')
+
+def sincronizar_fornecedores_carga_inicial():
+    """
+    Executa a carga inicial de fornecedores.
+    Busca e salva a lista COMPLETA de fornecedores recebida da API.
+    Esta função é projetada para ser executada apenas uma vez.
+    """
+    NOME_TABELA = 'fornecedores'
+    logging.info("\nIniciando carga inicial de FORNECEDORES...")
+
+    dados_fornecedores = _buscar_dados_paginados(cfg.FORNECEDOR_ENDPOINT)
+
+    if dados_fornecedores is None:
+        logging.error("Falha crítica ao buscar dados para a carga inicial de fornecedores. A tarefa foi abortada.")
+        return
+
+    if not dados_fornecedores:
+        logging.info("Nenhum fornecedor encontrado na API.")
+        _escrever_para_db(pd.DataFrame(), NOME_TABELA, if_exists='replace')
+        return
+
+    df_fornecedores = pd.DataFrame(dados_fornecedores)
+
+    # Lógica ajustada: Salva todos os fornecedores, pois não há campo de data para filtro.
+    logging.info(f"Recebidos {len(df_fornecedores)} registros. Salvando todos os fornecedores, conforme esperado para este endpoint.")
+    _escrever_para_db(df_fornecedores, NOME_TABELA, if_exists='replace')
+
+    logging.info("Carga inicial de fornecedores concluída com sucesso.")
+
+def atualizar_fornecedores_recentes():
+    """
+    Busca fornecedores que foram criados ou alterados no dia corrente e
+    atualiza a tabela local.
+    """
+    NOME_TABELA = 'fornecedores'
+    logging.info("\nIniciando atualização de fornecedores recentes...")
+
+    hoje_str = datetime.now().strftime('%Y-%m-%d')
+    params = {"dataInicial": hoje_str, "dataFinal": hoje_str}
+    
+    dados_alterados = _buscar_dados_paginados(cfg.FORNECEDOR_ALT_ENDPOINT, params=params)
+
+    if not dados_alterados:
+        logging.info("Nenhum fornecedor novo ou alterado para processar.")
+        return
+
+    df_alterados = pd.DataFrame(dados_alterados)
+    logging.info(f"{len(df_alterados)} fornecedores novos/alterados encontrados.")
+
+    df_existente = _ler_do_db(NOME_TABELA)
+    
+    # Lógica de atualização: junta os fornecedores existentes com os alterados,
+    # mantendo a versão mais recente em caso de duplicatas (baseado no código).
+    # Assumimos que 'codigo' é o identificador único do fornecedor.
+    df_final = pd.concat([df_existente, df_alterados]).drop_duplicates(subset=['codigo'], keep='last')
+    
+    _escrever_para_db(df_final, NOME_TABELA, if_exists='replace')

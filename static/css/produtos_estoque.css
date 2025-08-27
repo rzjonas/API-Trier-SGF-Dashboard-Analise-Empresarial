@@ -1,21 +1,38 @@
+/* ==========================================================================
+   Estilos para a Página de Produtos e Estoque
+   ========================================================================== */
+
+/* Define a linha de cartões de resumo usando Grid Layout. */
 .card-row {
+    /* Ativa o modo de exibição em grade (Grid). */
     display: grid;
+    /* Cria 3 colunas de largura igual para os cartões. */
     grid-template-columns: repeat(3, 1fr); 
+    /* Define um espaçamento de 20px entre os cartões. */
     gap: 20px;
+    /* Adiciona margens verticais para espaçamento na página. */
     margin-bottom: 25px;
     margin-top: 25px;
 }
 
+/* Estiliza cada cartão de resumo individual. */
 .card {
+    /* Define a cor de fundo do cartão. */
     background-color: #ffffff;
+    /* Adiciona preenchimento interno. */
     padding: 20px;
+    /* Arredonda as bordas do cartão. */
     border-radius: 8px;
+    /* Adiciona uma sombra sutil para profundidade. */
     box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    /* Adiciona uma borda clara. */
     border: 1px solid #eef2f7;
+    /* Utiliza Flexbox para organizar o conteúdo interno em coluna. */
     display: flex;
     flex-direction: column;
 }
 
+/* Estiliza o título (h3) dentro de um cartão. */
 .card h3 {
     margin-top: 0;
     margin-bottom: 10px;
@@ -23,83 +40,120 @@
     font-size: 16px;
 }
 
+/* Estiliza o parágrafo (p) que contém o valor principal no cartão. */
 .card p {
     margin: 0;
     font-size: 28px;
     font-weight: bold;
     color: #1a3b5d;
+    /* Faz o parágrafo crescer para ocupar o espaço vertical disponível, empurrando o span para baixo. */
     flex-grow: 1;
 }
 
+/* Estiliza o texto auxiliar (span) dentro de um cartão. */
 .card span {
     font-size: 12px;
     color: #7f8c8d;
     margin-top: 5px;
 }
 
+/* ==========================================================================
+   Responsividade dos Cartões
+   ========================================================================== */
+
+/* Em telas com largura máxima de 1200px (laptops menores, tablets). */
 @media (max-width: 1200px) {
+    /* Altera a grade de cartões para ter 2 colunas. */
     .card-row {
         grid-template-columns: repeat(2, 1fr);
     }
 }
 
+/* Em telas com largura máxima de 768px (tablets em modo retrato, celulares). */
 @media (max-width: 768px) {
+    /* Altera a grade de cartões para ter apenas 1 coluna, empilhando-os. */
     .card-row {
         grid-template-columns: 1fr;
     }
 }
 
+/* ==========================================================================
+   Estilos do Tooltip (dica de ferramenta)
+   ========================================================================== */
+/* OBS: Este é um componente reutilizável, presente em outros arquivos CSS. */
+
+/* Contêiner que envolve o ícone e o texto da dica. */
 .tooltip-container {
     position: relative;
     display: inline-block;
     margin-left: 5px;
 }
+
+/* Estiliza o ícone de informação "i". */
 .info-icon {
-    color: #5dade2; border: 1.5px solid #aed6f1; border-radius: 50%;
-    width: 16px; height: 16px; display: inline-flex; justify-content: center;
-    align-items: center; font-size: 12px; cursor: help; font-weight: bold;
+    color: #5dade2;
+    border: 1.5px solid #aed6f1;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 12px;
+    cursor: help;
+    font-weight: bold;
 }
-.tooltip-container {
-position: relative;
-display: inline-block;
-margin-left: 5px;
-}
-.info-icon {
-color: #5dade2; border: 1.5px solid #aed6f1; border-radius: 50%;
-width: 16px; height: 16px; display: inline-flex; justify-content: center;
-align-items: center; font-size: 12px; cursor: help; font-weight: bold;
-}
+
+/* Estiliza a caixa de texto do tooltip. */
 .tooltip-text {
-visibility: hidden;
-width: 280px;
-background-color: #34495e;
-color: #fff;
-text-align: left;
-border-radius: 6px;
-padding: 10px;
-position: absolute;
-z-index: 10;
-    
-top: 100%;
-right: 0;
-margin-top: 5px;
-
-opacity: 0;
-transition: opacity 0.3s ease;
-font-size: 12px;
-font-weight: normal;
+    /* Esconde o tooltip por padrão. */
+    visibility: hidden;
+    /* Define a aparência da caixa. */
+    width: 280px;
+    background-color: #34495e;
+    color: #fff;
+    text-align: left;
+    border-radius: 6px;
+    padding: 10px;
+    /* Define o posicionamento absoluto em relação ao .tooltip-container. */
+    position: absolute;
+    z-index: 10;
+    /* Posiciona a caixa abaixo do ícone. */
+    top: 100%;
+    right: 0;
+    margin-top: 5px;
+    /* Configura a transição de fade-in. */
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    /* Estilos da fonte. */
+    font-size: 12px;
+    font-weight: normal;
 }
+
+/* Exibe o tooltip ao passar o mouse sobre o contêiner. */
 .tooltip-container:hover .tooltip-text {
-visibility: visible;
-opacity: 1;
+    visibility: visible;
+    opacity: 1;
 }
 
-.card-niveis-estoque h3 { margin-bottom: 15px; }
+/* ==========================================================================
+   Estilos para o Card de Níveis de Estoque
+   ========================================================================== */
+
+/* Estiliza o título do card de níveis de estoque. */
+.card-niveis-estoque h3 {
+    margin-bottom: 15px;
+}
+
+/* Define o layout em grade para os itens de nível de estoque dentro do card. */
 .niveis-estoque-container {
     display: grid;
+    /* Cria duas colunas de larguras iguais. */
     grid-template-columns: 1fr 1fr;
     gap: 15px;
 }
+
+/* Estiliza a base de cada item de nível (Crítico, Baixo, etc.). */
 .nivel-item {
     display: flex;
     flex-direction: column;
@@ -108,12 +162,16 @@ opacity: 1;
     border-radius: 5px;
     height: 80px;
 }
+
+/* Organiza o cabeçalho dentro de cada item de nível. */
 .nivel-header {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
     width: 100%;
 }
+
+/* Estilos de texto para os elementos dentro do item de nível. */
 .nivel-titulo {
     color: #555;
     font-weight: bold;
@@ -129,43 +187,81 @@ opacity: 1;
     margin-top: 2px;
 }
 
-.nivel-item.critico { border-left: 4px solid #e74c3c; background-color: #fcece9; }
-.nivel-item.critico .nivel-valor { color: #e74c3c; }
-.nivel-item.baixo { border-left: 4px solid #f39c12; background-color: #fef5e7; }
-.nivel-item.baixo .nivel-valor { color: #f39c12; }
-.nivel-item.aceitavel { border-left: 4px solid #27ae60; background-color: #e9f7ef; }
-.nivel-item.aceitavel .nivel-valor { color: #27ae60; }
-.nivel-item.otimo { border-left: 4px solid #2ecc71; background-color: #eafaf1; }
-.nivel-item.otimo .nivel-valor { color: #2ecc71; }
+/* Modificadores de cor baseados no status do estoque. */
+.nivel-item.critico {
+    border-left: 4px solid #e74c3c;
+    background-color: #fcece9;
+}
+.nivel-item.critico .nivel-valor {
+    color: #e74c3c;
+}
 
+.nivel-item.baixo {
+    border-left: 4px solid #f39c12;
+    background-color: #fef5e7;
+}
+.nivel-item.baixo .nivel-valor {
+    color: #f39c12;
+}
+
+.nivel-item.aceitavel {
+    border-left: 4px solid #27ae60;
+    background-color: #e9f7ef;
+}
+.nivel-item.aceitavel .nivel-valor {
+    color: #27ae60;
+}
+
+.nivel-item.otimo {
+    border-left: 4px solid #2ecc71;
+    background-color: #eafaf1;
+}
+.nivel-item.otimo .nivel-valor {
+    color: #2ecc71;
+}
+
+/* ==========================================================================
+   Estilos para a Grade de Gráficos
+   ========================================================================== */
+
+/* Define a estrutura em grade para a seção de gráficos. */
 .charts-grid {
     display: grid;
+    /* Cria uma grade de 12 colunas. */
     grid-template-columns: repeat(12, 1fr);
     gap: 20px;
     margin-top: 25px;
 }
 
+/* Estiliza o contêiner individual de cada gráfico. */
 .grafico-container {
+    /* Faz o contêiner ocupar 6 das 12 colunas (metade da largura). */
     grid-column: span 6;
+    /* Estilos visuais: fundo, preenchimento, bordas e sombra. */
     background-color: #ffffff;
     padding: 20px;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     border: 1px solid #eef2f7;
+    /* Define altura mínima e altura fixa. */
     min-height: 400px; 
     height: 600px;
+    /* Organiza o conteúdo interno (título, canvas) em coluna. */
     display: flex;
     flex-direction: column;
     position: relative;
 }
 
+/* Garante que o canvas do gráfico se ajuste corretamente ao contêiner flex. */
 .grafico-container canvas {
     position: relative;
     width: 100% !important;
     height: auto !important;
+    /* Faz o canvas crescer para preencher o espaço vertical disponível. */
     flex-grow: 1;
 }
 
+/* Estiliza o título (h3) dentro do contêiner do gráfico. */
 .grafico-container h3 {
     text-align: center;
     margin-top: 0;
@@ -173,7 +269,9 @@ opacity: 1;
     color: #1a3b5d;
 }
 
+/* Responsividade da grade de gráficos. */
 @media (max-width: 992px) {
+    /* Muda para uma única coluna em telas menores. */
     .charts-grid {
         grid-template-columns: 1fr;
     }
@@ -182,24 +280,37 @@ opacity: 1;
     }
 }
 
+/* ==========================================================================
+   Estilos para a Tabela de Análise de Produtos
+   ========================================================================== */
+
+/* Define um layout fixo para a tabela, permitindo controle sobre a largura das colunas. */
 #tabela-analise-produtos {
     table-layout: fixed;
     width: 100%;
 }
 
+/* Estilos padrão para células de cabeçalho e dados da tabela. */
 #tabela-analise-produtos th,
 #tabela-analise-produtos td {
+    /* Impede a quebra de linha do texto. */
     white-space: nowrap;
+    /* Esconde o texto que transborda a célula. */
     overflow: hidden;
+    /* Adiciona "..." ao final do texto cortado. */
     text-overflow: ellipsis;
 }
 
+/* Estilo específico para a primeira coluna (nome do produto), permitindo quebra de linha. */
 #tabela-analise-produtos th:first-child,
 #tabela-analise-produtos td:first-child {
+    /* Permite que o texto quebre em várias linhas se necessário. */
     white-space: normal;
+    /* Define uma largura fixa maior para esta coluna. */
     width: 30%;
 }
 
+/* Estilo específico para a última coluna, garantindo visibilidade do conteúdo. */
 #tabela-analise-produtos th:last-child {
     white-space: normal;
     text-align: center;

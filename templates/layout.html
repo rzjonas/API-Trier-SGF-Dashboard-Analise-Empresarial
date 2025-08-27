@@ -97,48 +97,84 @@
     </div>
 
     <script>
+        // --- INICIALIZAÇÃO E MANIPULAÇÃO DE FILTROS GLOBAIS ---
+
+        // Executa o script quando o DOM (a estrutura da página) estiver completamente carregado.
         document.addEventListener('DOMContentLoaded', () => {
+            
+            // --- LÓGICA PARA MANTER OS FILTROS DE DATA ENTRE PÁGINAS ---
+
+            // Pega os parâmetros da URL atual (ex: ?dataInicio=2023-01-01&dataFim=2023-01-31).
             const params = new URLSearchParams(window.location.search);
         
+            // Extrai os valores de data de início e fim da URL.
             const dataInicioUrl = params.get('dataInicio');
             const dataFimUrl = params.get('dataFim');
 
+            // Pega a data de hoje e formata como AAAA-MM-DD para usar como padrão.
             const hoje = new Date().toISOString().slice(0, 10);
 
+            // Define o valor dos campos de data. Usa o valor da URL se existir, senão, usa a data de hoje.
             document.getElementById('dataInicio').value = dataInicioUrl || hoje;
             document.getElementById('dataFim').value = dataFimUrl || hoje;
 
+            // --- EVENT LISTENER PARA O BOTÃO DE FILTRAGEM GLOBAL ---
+
+            // Adiciona um ouvinte de evento para o clique no botão "Filtrar Tudo".
             document.getElementById('btnFiltrarGlobal').addEventListener('click', () => {
+                // Pega os valores atuais dos campos de data.
                 const dataInicio = document.getElementById('dataInicio').value;
                 const dataFim = document.getElementById('dataFim').value;
             
+                // Cria um objeto URL com a URL da página atual para facilitar a manipulação.
                 const url = new URL(window.location.href);
+                // Define os parâmetros de data na URL.
                 url.searchParams.set('dataInicio', dataInicio);
                 url.searchParams.set('dataFim', dataFim);
             
+                // Remove outros parâmetros específicos (ex: codVendedor) para garantir uma filtragem limpa.
                 url.searchParams.delete('codVendedor');
             
+                // Mostra o overlay de carregamento e redireciona a página para a nova URL com os filtros.
                 document.getElementById('loadingOverlay').style.display = 'flex';
                 window.location.href = url.toString();
             });
 
+            // --- LÓGICA PARA MANTER OS FILTROS AO NAVEGAR PELO MENU ---
+
+            // Seleciona todos os links do menu de navegação.
             document.querySelectorAll('.main-nav a').forEach(link => {
+                // Adiciona um ouvinte de evento de clique para cada link.
                 link.addEventListener('click', (event) => {
+                    // Impede o comportamento padrão do link (navegação imediata).
                     event.preventDefault();
+                    // Pega os valores atuais dos filtros de data.
                     const dataInicio = document.getElementById('dataInicio').value;
                     const dataFim = document.getElementById('dataFim').value;
+                    // Cria um objeto URL com o destino do link clicado.
                     const url = new URL(event.currentTarget.href);
+                    // Adiciona os filtros de data como parâmetros na URL de destino.
                     url.searchParams.set('dataInicio', dataInicio);
                     url.searchParams.set('dataFim', dataFim);
+                    // Mostra o overlay de carregamento e navega para a URL construída.
                     document.getElementById('loadingOverlay').style.display = 'flex';
                     window.location.href = url.toString();
                 });
             });
 
+            // --- LÓGICA DE VERIFICAÇÃO DE ATUALIZAÇÃO DE DADOS EM TEMPO REAL ---
+
+            // Variável para armazenar a contagem inicial de registros. -1 indica que ainda não foi verificado.
             let initialDataCount = -1;
+            // Define o intervalo de tempo para verificar por novos dados (60000ms = 1 minuto).
             const UPDATE_CHECK_INTERVAL_MS = 60000;
+            // Variável para guardar a referência do setInterval, para que possa ser parado depois.
             let updateInterval;
 
+            /**
+             * Função assíncrona que busca o estado inicial dos dados para estabelecer uma linha de base.
+             * Conta quantos registros de venda existem para o filtro de data atual.
+             */
             async function getInitialDataState() {
                 const dataInicio = document.getElementById('dataInicio').value;
                 const dataFim = document.getElementById('dataFim').value;
@@ -150,16 +186,21 @@
                     const response = await fetch(url);
                     if (!response.ok) return;
                     const data = await response.json();
+                    // Armazena a contagem inicial de registros na variável global.
                     initialDataCount = data.sales_data ? data.sales_data.length : 0;
                     console.log(`Estado inicial dos dados: ${initialDataCount} registros.`);
                 } catch (error) {
                     console.error("Não foi possível buscar o estado inicial dos dados.", error);
-                    initialDataCount = 0;
+                    initialDataCount = 0; // Define como 0 em caso de erro.
                 }
             }
 
+            /**
+             * Função assíncrona que verifica periodicamente se há novos dados.
+             * Compara a contagem atual de registros com a contagem inicial.
+             */
             async function checkForUpdates() {
-                if (initialDataCount === -1) return; 
+                if (initialDataCount === -1) return; // Não executa se a contagem inicial ainda não foi feita.
 
                 console.log("Verificando se há novos dados...");
                 const dataInicio = document.getElementById('dataInicio').value;
@@ -174,9 +215,12 @@
                     const newData = await response.json();
                     const newDataCount = newData.sales_data ? newData.sales_data.length : 0;
 
+                    // Se a nova contagem for diferente da inicial, significa que os dados mudaram.
                     if (newDataCount !== initialDataCount) {
                         console.log(`Novos dados encontrados! (${newDataCount} registros vs ${initialDataCount} iniciais).`);
+                        // Mostra o botão de notificação para o usuário.
                         document.getElementById('update-notification').style.display = 'block';
+                        // Para de verificar por novas atualizações para não sobrecarregar.
                         clearInterval(updateInterval);
                     }
                 } catch (error) {
@@ -184,15 +228,21 @@
                 }
             }
     
+            // Adiciona um ouvinte de evento ao botão de notificação de atualização.
             document.getElementById('btn-refresh-data').addEventListener('click', () => {
+                // Ao clicar, mostra o carregamento e simplesmente recarrega a página.
                 document.getElementById('loadingOverlay').style.display = 'flex';
                 window.location.reload();
             });
 
+            // Inicia o processo: primeiro pega o estado inicial dos dados.
             getInitialDataState().then(() => {
+                // Após ter o estado inicial, verifica se a página atual é uma página "em construção".
                 if (document.querySelector('h2').textContent.includes('Construção')) {
+                    // Se for, não inicia a verificação periódica.
                     console.log("Página em construção, verificação de atualização desativada.");
                 } else {
+                    // Caso contrário, inicia a verificação periódica a cada 1 minuto.
                      updateInterval = setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL_MS);
                 }
             });

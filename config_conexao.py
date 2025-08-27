@@ -56,6 +56,10 @@ PRODUTO_ALT_ENDPOINT = f"{API_BASE_URL}/rest/integracao/produto/obter-alterados-
 # Endpoint de Estoque
 ESTOQUE_ALT_ENDPOINT = f"{API_BASE_URL}/rest/integracao/estoque/obter-alterados-v1" # Para buscar apenas as movimentações de estoque do dia.
 
+# Endpoints de Fornecedores
+FORNECEDOR_ENDPOINT = f"{API_BASE_URL}/rest/integracao/fornecedor/obter-todos-v1"
+FORNECEDOR_ALT_ENDPOINT = f"{API_BASE_URL}/rest/integracao/fornecedor/obter-alterados-v1"
+
 
 # ==============================================================================
 # CONFIGURAÇÕES DE DIRETÓRIOS E ARQUIVOS
@@ -98,6 +102,7 @@ INTERVALO_COMPRAS = 15      # A cada 15 minutos, buscará novas compras.
 INTERVALO_PRODUTOS = 15     # A cada 15 minutos, buscará produtos alterados.
 INTERVALO_ESTOQUE = 10      # A cada 10 minutos, buscará alterações de estoque.
 INTERVALO_VENDEDORES = 180  # A cada 180 minutos (3 horas), atualizará a lista de vendedores.
+INTERVALO_FORNECEDORES = 20 # A cada 20 minutos, buscará novos fornecedores.
 
 
 # ==============================================================================
