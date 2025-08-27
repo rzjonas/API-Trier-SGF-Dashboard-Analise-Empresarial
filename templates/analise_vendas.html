@@ -3,106 +3,11 @@
 
 {% block title %}Análise de Vendas{% endblock %}
 
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/analise_vendas.css') }}">
+{% endblock %}
 
 {% block content %}
-<style>
-    .graficos-grid-analise {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(350px, 1fr));
-        gap: 25px;
-        margin-bottom: 25px;
-    }
-    .grafico-container-analise {
-        background-color: #fdfdfd;
-        padding: 20px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        border: 1px solid #eef2f7;
-        height: 350px;
-        display: flex;
-        flex-direction: column;
-    }
-    .grafico-container-analise h3 {
-        text-align: center;
-        margin-top: 0;
-        margin-bottom: 15px;
-        color: #1a3b5d;
-        font-weight: 600;
-    }
-
-    @media (max-width: 768px) {
-        .graficos-grid-analise {
-            grid-template-columns: 1fr;
-        }
-    }
-
-    .resumo-card h4 {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        gap: 8px;
-    }
-
-    .tooltip-container {
-        position: relative;
-        display: inline-block;
-    }
-
-    .info-icon {
-        font-family: monospace;
-        font-weight: bold;
-        color: #5dade2;
-        border: 1.5px solid #aed6f1;
-        border-radius: 50%;
-        width: 16px;
-        height: 16px;
-        display: inline-flex;
-        justify-content: center;
-        align-items: center;
-        font-size: 12px;
-        cursor: help;
-    }
-
-    .tooltip-text {
-        visibility: hidden;
-        width: 280px;
-        background-color: #34495e;
-        color: #fff;
-        text-align: left;
-        border-radius: 6px;
-        padding: 10px;
-        position: absolute;
-        z-index: 10;
-        bottom: 150%;
-        left: 50%;
-        margin-left: -140px;
-        opacity: 0;
-        transition: opacity 0.3s ease;
-
-        font-size: 12px;
-        font-weight: 500;
-        line-height: 1.4;
-        text-transform: none;
-    }
-
-    .tooltip-text::after {
-        content: "";
-        position: absolute;
-        top: 100%;
-        left: 50%;
-        margin-left: -5px;
-        border-width: 5px;
-        border-style: solid;
-        border-color: #34495e transparent transparent transparent;
-    }
-
-    .tooltip-container:hover .tooltip-text {
-        visibility: visible;
-        opacity: 1;
-    }
-</style>
-
-
 <div id="mainContent" style="display: none;">
     <div class="resumo-container" id="resumoContainer"></div>
     
