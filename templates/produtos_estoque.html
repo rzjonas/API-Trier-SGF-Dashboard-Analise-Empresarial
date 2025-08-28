@@ -73,7 +73,7 @@
         </div>
     </div>
 
-    <h2>Tabela de Análise de Produtos</h2>
+    <h2>Tabela de Análise de Produtos Vendidos</h2>
     <div class="table-wrapper">
         <table id="tabela-analise-produtos">
             <thead>
@@ -193,11 +193,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderizarGraficoABC(data.curva_abc);
                 renderizarGraficosTop(data.graficos_top);
                 
-                // Armazena todos os dados da tabela para paginação e reseta para a primeira página.
-                todosOsProdutos = data.tabela_produtos;
+                // AJUSTE: Ordena a lista de produtos pela quantidade vendida (do maior para o menor) antes de armazenar.
+                todosOsProdutos = data.tabela_produtos.sort((a, b) => b.qtd_vendida - a.qtd_vendida);
                 paginaAtualProdutos = 1;
 
-                // Renderiza a tabela com a primeira página de dados.
+                // Renderiza a tabela com a primeira página de dados já ordenados.
                 renderizarTabelaPaginada();
             }
 
@@ -246,12 +246,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Renderiza o gráfico de Top 10 por Receita.
         const ctxReceita = document.getElementById('graficoTopReceita').getContext('2d');
         if (chartTopReceita) chartTopReceita.destroy();
-        chartTopReceita = new Chart(ctxReceita, { type: 'bar', data: { labels: dados.top_receita.labels, datasets: [{ label: 'Receita (R$)', data: dados.top_receita.data, backgroundColor: '#1a3b5d', }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
+        chartTopReceita = new Chart(ctxReceita, { type: 'bar', data: { labels: dados.top_receita.labels, datasets: [{ label: 'Receita (R$)', data: dados.top_receita.data, backgroundColor: '#1a3b5d', }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, interaction: {mode: 'index', intersect: false, axis: 'y'} } });
         
         // Renderiza o gráfico de Top 10 por Quantidade.
         const ctxQtd = document.getElementById('graficoTopQtd').getContext('2d');
         if (chartTopQtd) chartTopQtd.destroy();
-        chartTopQtd = new Chart(ctxQtd, { type: 'bar', data: { labels: dados.top_qtd.labels, datasets: [{ label: 'Quantidade Vendida', data: dados.top_qtd.data, backgroundColor: '#2c537e', }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
+        chartTopQtd = new Chart(ctxQtd, { type: 'bar', data: { labels: dados.top_qtd.labels, datasets: [{ label: 'Quantidade Vendida', data: dados.top_qtd.data, backgroundColor: '#2c537e', }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, interaction: {mode: 'index', intersect: false, axis: 'y'} } });
     }
 
     /**

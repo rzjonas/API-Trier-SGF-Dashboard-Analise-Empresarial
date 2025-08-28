@@ -6,18 +6,273 @@
 {% endblock %}
 
 {% block content %}
-    <h2 style="text-align:center; margin-top: 50px; color: #c0392b;">
-        🚧 Página de Análise Financeira e de Compras em Construção 🚧
-    </h2>
+<div id="mainContent" style="display: none;">
+    
+    <div class="resumo-container-compras">
+        <div class="resumo-card-compras total-notas">
+            <h4>Total de Notas de Compra</h4>
+            <p id="card-total-notas">0</p>
+        </div>
+        <div class="resumo-card-compras valor-liquido-comprado">
+            <h4>Valor Total Líquido</h4>
+            <p id="card-valor-bruto">R$ 0,00</p>
+        </div>
+        <div class="resumo-card-compras valor-nota-final">
+            <h4>Valor Total Nota</h4>
+            <p id="card-valor-liquido">R$ 0,00</p>
+        </div>
+    </div>
+
+    <h2>NOTAS DE COMPRA</h2>
+    <div class="table-wrapper" id="tabelaContainerCompras">
+        </div>
+    <div class="paginacao-container" id="paginacaoContainerCompras"></div>
+
+</div>
+
+<div id="emptyState" style="display: none;">
+    <div class="icon">
+        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" fill="#5dade2"/>
+        </svg>
+    </div>
+    <h2>Nenhum dado encontrado</h2>
+    <p>Não há registros de compras para gerar a análise com os filtros selecionados.</p>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const loadingOverlay = document.getElementById('loadingOverlay');
-        if (loadingOverlay) {
-            loadingOverlay.style.display = 'none';
+document.addEventListener('DOMContentLoaded', () => {
+
+    // --- REFERÊNCIAS AOS ELEMENTOS DO DOM ---
+    const elements = {
+        loadingOverlay: document.getElementById('loadingOverlay'),
+        mainContent: document.getElementById('mainContent'),
+        emptyState: document.getElementById('emptyState'),
+        cardTotalNotas: document.getElementById('card-total-notas'),
+        cardValorBruto: document.getElementById('card-valor-bruto'),
+        cardValorLiquido: document.getElementById('card-valor-liquido'),
+        tabelaContainer: document.getElementById('tabelaContainerCompras'),
+        paginacaoContainer: document.getElementById('paginacaoContainerCompras')
+    };
+
+    // --- VARIÁVEIS DE ESTADO E CONFIGURAÇÃO ---
+    const ITENS_POR_PAGINA = 50;
+    let paginaAtual = 1;
+    let todasAsNotas = []; // Armazena todas as notas de compra da API
+    let dadosAgrupados = {}; // Armazena os dados agrupados por nota
+    let cabecalhoCompra = [];
+    let cabecalhoItem = [];
+
+    // --- MAPEAMENTO DE COLUNAS ---
+    const mapeamentoColunas = {
+        "numeroNota": "Nº Nota", "dataEntrada": "Data Entrada", "nomeFornecedor": "Fornecedor",
+        "TotalBruto": "Total Líquido", "TotalLiquido": "Total Nota",
+        "codigoProduto": "Cód. Produto", "descricaoProduto": "Descrição Produto",
+        "quantidade": "Qtd", "valorUnitario": "Vlr. Unit.", "valorTotal": "Vlr. Total"
+    };
+
+    /**
+     * Função auxiliar para formatar um valor numérico como moeda brasileira.
+     */
+    const formatarMoeda = (valor) => (valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    /**
+     * Função principal para buscar e renderizar os dados da página.
+     */
+    async function fetchAndUpdateCompras() {
+        elements.loadingOverlay.style.display = 'flex';
+        const dataInicio = document.getElementById('dataInicio').value;
+        const dataFim = document.getElementById('dataFim').value;
+        const url = `/api/dados-financeiro-compras?dataInicio=${dataInicio}&dataFim=${dataFim}`;
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Erro na requisição: ${response.statusText}`);
+            const data = await response.json();
+
+            if (!data.compras_data || data.compras_data.length === 0) {
+                elements.mainContent.style.display = 'none';
+                elements.emptyState.style.display = 'flex';
+            } else {
+                elements.mainContent.style.display = 'block';
+                elements.emptyState.style.display = 'none';
+                
+                processarDados(data.compras_data);
+                renderizarCards();
+                
+                todasAsNotas = Object.values(dadosAgrupados).sort((a, b) => a.info.dataEntrada.localeCompare(b.info.dataEntrada));
+                paginaAtual = 1;
+                renderizarTabelaPaginada();
+            }
+        } catch (error) {
+            console.error("Falha ao carregar dados de financeiro e compras:", error);
+            elements.mainContent.style.display = 'none';
+            elements.emptyState.style.display = 'flex';
+        } finally {
+            elements.loadingOverlay.style.display = 'none';
         }
-    });
+    }
+
+    /**
+     * Processa os dados brutos da API, agrupando itens por nota de compra.
+     */
+    function processarDados(dadosPlanos) {
+        dadosAgrupados = {};
+        // Adiciona os totais da nota às colunas de informação principal
+        const colunasInfoCompra = ["numeroNota", "dataEntrada", "nomeFornecedor", "valorTotalProdutos", "valorTotalNota"];
+        cabecalhoItem = ["codigoProduto", "descricaoProduto", "quantidade", "valorUnitario", "valorTotal"];
+        cabecalhoCompra = ["numeroNota", "dataEntrada", "nomeFornecedor", "TotalBruto", "TotalLiquido"];
+        
+        dadosPlanos.forEach(linha => {
+            const notaId = linha.numeroNota;
+            if (!dadosAgrupados[notaId]) {
+                dadosAgrupados[notaId] = { info: {}, itens: [], totais: { bruto: linha.valorTotalProdutos || 0, liquido: linha.valorTotalNota || 0 }}; // Usa os totais da nota diretamente
+                colunasInfoCompra.forEach(col => dadosAgrupados[notaId].info[col] = linha[col]);
+            }
+            const item = {};
+            cabecalhoItem.forEach(col => item[col] = linha[col]);
+            dadosAgrupados[notaId].itens.push(item);
+
+            // A soma dos totais agora será feita na função renderizarCards, usando os valores já armazenados.
+        });
+    }
+
+    /**
+     * Atualiza os valores nos cards de resumo.
+     */
+    function renderizarCards() {
+        const notas = Object.values(dadosAgrupados);
+        const totalNotas = notas.length;
+        // Calcula os totais diretamente dos valores de cada nota, que são mais precisos.
+        const totalBruto = notas.reduce((acc, nota) => acc + (nota.totais.bruto || 0), 0);
+        const totalLiquido = notas.reduce((acc, nota) => acc + (nota.totais.liquido || 0), 0);
+
+        elements.cardTotalNotas.textContent = totalNotas.toLocaleString('pt-BR');
+        elements.cardValorBruto.textContent = formatarMoeda(totalBruto);
+        elements.cardValorLiquido.textContent = formatarMoeda(totalLiquido);
+    }
+
+    /**
+     * Renderiza a tabela e a paginação para a página atual.
+     */
+    function renderizarTabelaPaginada() {
+        const inicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
+        const fim = inicio + ITENS_POR_PAGINA;
+        const dadosDaPagina = todasAsNotas.slice(inicio, fim);
+
+        elements.tabelaContainer.innerHTML = criarHtmlDeTabela(dadosDaPagina);
+        elements.paginacaoContainer.innerHTML = criarControlesPaginacao();
+        
+        // Reatribui o event listener após renderizar a tabela
+        document.querySelectorAll('.linha-compra').forEach(row => {
+            row.addEventListener('click', toggleDetails);
+        });
+    }
+
+    /**
+     * Gera o HTML completo da tabela de notas de compra.
+     */
+    function criarHtmlDeTabela(dados) {
+        if (dados.length === 0) return "<p style='text-align:center;'>Nenhuma nota nesta categoria.</p>";
+        
+        let tableHTML = '<table><thead><tr>';
+        cabecalhoCompra.forEach(key => tableHTML += `<th>${mapeamentoColunas[key] || key}</th>`);
+        tableHTML += '</tr></thead><tbody>';
+
+        dados.forEach(({ info, itens, totais }, index) => {
+            const zebraClass = index % 2 === 0 ? 'linha-branca' : 'linha-cinza';
+            tableHTML += `<tr class="linha-compra ${zebraClass}" data-nota-id="${info.numeroNota}">`;
+            
+            cabecalhoCompra.forEach(col => {
+                let valor = '';
+                let classe = '';
+                if (info[col] !== undefined) {
+                    if (col === 'dataEntrada') {
+                        const partes = (info[col] || '').split('-');
+                        valor = partes.length === 3 ? `${partes[2]}/${partes[1]}/${partes[0]}` : info[col];
+                    } else {
+                        valor = info[col] || '';
+                    }
+                    if (col === 'numeroNota') classe = 'nota-clicavel';
+                } else {
+                    classe = 'col-numerica';
+                    // Usa os totais da nota que foram armazenados
+                    if (col === 'TotalBruto') valor = formatarMoeda(totais.bruto);
+                    else if (col === 'TotalLiquido') valor = formatarMoeda(totais.liquido);
+                }
+                tableHTML += `<td class="${classe}">${valor}</td>`;
+            });
+            tableHTML += `</tr>`;
+
+            // Linha oculta com os detalhes dos itens
+            let detalhesHTML = '<div class="tabela-interna"><table><thead><tr>';
+            cabecalhoItem.forEach(key => detalhesHTML += `<th>${mapeamentoColunas[key] || key}</th>`);
+            detalhesHTML += '</tr></thead><tbody>';
+            itens.forEach(item => {
+                detalhesHTML += '<tr>';
+                cabecalhoItem.forEach(col => {
+                    let valorItem = item[col] || '';
+                    if (['valorUnitario', 'valorTotal'].includes(col)) {
+                        valorItem = formatarMoeda(valorItem);
+                    }
+                    detalhesHTML += `<td>${valorItem}</td>`;
+                });
+                detalhesHTML += '</tr>';
+            });
+            detalhesHTML += '</tbody></table></div>';
+            
+            tableHTML += `<tr class="detalhes-produtos ${zebraClass}" style="display: none;"><td colspan="${cabecalhoCompra.length}">${detalhesHTML}</td></tr>`;
+        });
+        tableHTML += '</tbody></table>';
+        return tableHTML;
+    }
+
+    /**
+     * Gera o HTML para os controles de paginação.
+     */
+    function criarControlesPaginacao() {
+        const totalPaginas = Math.ceil(todasAsNotas.length / ITENS_POR_PAGINA);
+        if (totalPaginas <= 1) return '';
+
+        let html = `<button class="paginacao-btn" data-pagina="${paginaAtual - 1}" ${paginaAtual === 1 ? 'disabled' : ''}>&laquo; Anterior</button>`;
+        for (let i = 1; i <= totalPaginas; i++) {
+             if (i === 1 || i === totalPaginas || (i >= paginaAtual - 2 && i <= paginaAtual + 2)) {
+                html += `<button class="paginacao-btn ${i === paginaAtual ? 'active' : ''}" data-pagina="${i}">${i}</button>`;
+             } else if (i === paginaAtual - 3 || i === paginaAtual + 3) {
+                html += `<span>...</span>`;
+             }
+        }
+        html += `<button class="paginacao-btn" data-pagina="${paginaAtual + 1}" ${paginaAtual === totalPaginas ? 'disabled' : ''}>Próximo &raquo;</button>`;
+        return html;
+    }
+
+    /**
+     * Manipula os cliques nos botões de paginação.
+     */
+    function handlePaginacaoClick(event) {
+        const target = event.target.closest('.paginacao-btn');
+        if (!target || target.disabled) return;
+        paginaAtual = parseInt(target.dataset.pagina, 10);
+        renderizarTabelaPaginada();
+    }
+    
+    /**
+     * Alterna a visibilidade dos detalhes dos itens de uma nota.
+     */
+    function toggleDetails(event) {
+        const linhaCompra = event.currentTarget;
+        const detalhesRow = linhaCompra.nextElementSibling;
+        if (detalhesRow && detalhesRow.classList.contains('detalhes-produtos')) {
+            linhaCompra.classList.toggle('linha-expandida');
+            detalhesRow.style.display = detalhesRow.style.display === 'table-row' ? 'none' : 'table-row';
+        }
+    }
+
+    // --- INICIALIZAÇÃO ---
+    elements.paginacaoContainer.addEventListener('click', handlePaginacaoClick);
+    fetchAndUpdateCompras();
+});
 </script>
 {% endblock %}

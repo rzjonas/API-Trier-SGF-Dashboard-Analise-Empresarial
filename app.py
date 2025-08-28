@@ -27,56 +27,91 @@ app = Flask(__name__)
 # Isso evita a leitura do banco de dados a cada requisição, melhorando o desempenho.
 _df_final_cache = None       # Armazena o DataFrame de vendas processadas.
 _df_vendedores_cache = None  # Armazena o DataFrame de vendedores.
-_cache_timestamp = None      # Guarda o momento em que o cache foi criado.
+_cache_timestamp = None      # Guarda o momento em que o cache de vendas foi criado.
+
+# --- NOVO: Cache para dados de Compras ---
+_df_compras_cache = None      # Armazena o DataFrame de compras.
+_df_fornecedores_cache = None # Armazena o DataFrame de fornecedores.
+_df_produtos_cache = None     # Armazena o DataFrame de produtos.
+_compras_cache_timestamp = None # Guarda o momento em que o cache de compras foi criado.
+
 CACHE_DURATION_MINUTES = 5   # Define o tempo de validade do cache em minutos.
 
 # ==============================================================================
-# FUNÇÃO DE CARREGAMENTO E PROCESSAMENTO DE DADOS
+# FUNÇÕES DE CARREGAMENTO E PROCESSAMENTO DE DADOS
 # ==============================================================================
 def carregar_e_processar_dados():
     """
-    Carrega os dados de vendas e vendedores do banco de dados SQLite.
-    Implementa um sistema de cache para evitar leituras repetidas do banco,
-    retornando os dados da memória se o cache ainda for válido.
+    Carrega os dados de VENDAS e VENDEDORES do banco de dados SQLite.
+    Implementa um sistema de cache para evitar leituras repetidas do banco.
     """
     # Torna as variáveis de cache globais acessíveis dentro da função.
     global _df_final_cache, _df_vendedores_cache, _cache_timestamp
 
     # 1. VERIFICAÇÃO DO CACHE
-    # Se o cache já existe e foi criado recentemente, retorna os dados diretamente da memória.
     if _df_final_cache is not None and _cache_timestamp is not None:
         cache_age = datetime.now() - _cache_timestamp
         if cache_age < timedelta(minutes=CACHE_DURATION_MINUTES):
-            # Retorna uma cópia dos DataFrames para evitar modificações acidentais no cache.
             return _df_final_cache.copy(), _df_vendedores_cache.copy()
 
-    # 2. CARREGAMENTO DOS DADOS (SE O CACHE ESTIVER INVÁLIDO OU NÃO EXISTIR)
-    # Define a string de conexão para o banco de dados SQLite.
+    # 2. CARREGAMENTO DOS DADOS
     conn_str = f'sqlite:///{cfg.DATABASE_FILE}'
     df_final = pd.DataFrame()
     df_vendedores = pd.DataFrame()
 
     try:
-        # Tenta ler as tabelas 'vendas_processadas' e 'vendedores' do banco.
         df_final = pd.read_sql_table('vendas_processadas', conn_str)
         df_vendedores = pd.read_sql_table('vendedores', conn_str)
-        logging.info(f"Carregados {len(df_final)} registros pré-processados e {len(df_vendedores)} vendedores do banco de dados.")
+        logging.info(f"Carregados {len(df_final)} registros de vendas e {len(df_vendedores)} vendedores do banco de dados.")
     except ValueError as e:
-        # Captura o erro que ocorre se a tabela ainda não existir (comum na primeira execução).
-        logging.warning(f"Aviso ao carregar dados pré-processados: {e}. A tabela pode não existir ainda.")
+        logging.warning(f"Aviso ao carregar dados de vendas: {e}. A tabela pode não existir.")
     except Exception as e:
-        # Captura outros erros críticos que possam ocorrer durante a leitura do banco.
-        logging.error(f"Erro crítico ao ler do banco de dados: {e}", exc_info=True)
-        return pd.DataFrame(), pd.DataFrame() # Retorna DataFrames vazios em caso de erro.
+        logging.error(f"Erro crítico ao ler tabelas de vendas: {e}", exc_info=True)
+        return pd.DataFrame(), pd.DataFrame()
 
     # 3. ATUALIZAÇÃO DO CACHE
-    # Armazena os novos dados carregados e atualiza o timestamp do cache.
     _df_final_cache = df_final
     _df_vendedores_cache = df_vendedores
     _cache_timestamp = datetime.now()
     
-    # Retorna uma cópia dos DataFrames recém-carregados.
     return df_final.copy(), df_vendedores.copy()
+
+# --- NOVO: Função de carregamento de dados para a página de Compras ---
+def carregar_dados_compras():
+    """
+    Carrega os dados de COMPRAS, FORNECEDORES e PRODUTOS do banco de dados SQLite.
+    Implementa um sistema de cache dedicado para estas tabelas.
+    """
+    global _df_compras_cache, _df_fornecedores_cache, _df_produtos_cache, _compras_cache_timestamp
+
+    # 1. VERIFICAÇÃO DO CACHE
+    if _df_compras_cache is not None and _compras_cache_timestamp is not None:
+        cache_age = datetime.now() - _compras_cache_timestamp
+        if cache_age < timedelta(minutes=CACHE_DURATION_MINUTES):
+            return _df_compras_cache.copy(), _df_fornecedores_cache.copy(), _df_produtos_cache.copy()
+
+    # 2. CARREGAMENTO DOS DADOS
+    conn_str = f'sqlite:///{cfg.DATABASE_FILE}'
+    df_compras, df_fornecedores, df_produtos = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+
+    try:
+        df_compras = pd.read_sql_table('compras', conn_str)
+        df_fornecedores = pd.read_sql_table('fornecedores', conn_str)
+        df_produtos = pd.read_sql_table('produtos', conn_str)
+        logging.info(f"Carregados {len(df_compras)} registros de compras, {len(df_fornecedores)} fornecedores e {len(df_produtos)} produtos.")
+    except ValueError as e:
+        logging.warning(f"Aviso ao carregar dados de compras: {e}. Uma das tabelas pode não existir.")
+    except Exception as e:
+        logging.error(f"Erro crítico ao ler tabelas de compras: {e}", exc_info=True)
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+
+    # 3. ATUALIZAÇÃO DO CACHE
+    _df_compras_cache = df_compras
+    _df_fornecedores_cache = df_fornecedores
+    _df_produtos_cache = df_produtos
+    _compras_cache_timestamp = datetime.now()
+    
+    return df_compras.copy(), df_fornecedores.copy(), df_produtos.copy()
 
 # ==============================================================================
 # ROTAS PARA RENDERIZAÇÃO DAS PÁGINAS HTML
@@ -388,6 +423,92 @@ def api_produtos_estoque_data():
 
     # Retorna todos os dados para a página.
     return jsonify(indicadores=indicadores, curva_abc=curva_abc, graficos_top=graficos_top, tabela_produtos=tabela_json)
+
+
+# --- NOVO: Endpoint da API para a página de Financeiro & Compras ---
+@app.route('/api/dados-financeiro-compras')
+def api_financeiro_compras_data():
+    """
+    API para a página 'Financeiro & Compras'.
+    Fornece dados detalhados das notas de compra, enriquecidos com nomes de 
+    fornecedores e produtos, prontos para serem exibidos na tabela.
+    """
+    # 1. CARREGAMENTO DOS DADOS (USANDO A NOVA FUNÇÃO DE CACHE)
+    df_compras, df_fornecedores, df_produtos = carregar_dados_compras()
+
+    if df_compras.empty:
+        return jsonify(compras_data=[]) # Retorna estrutura vazia se não houver compras
+
+    # 2. FILTRAGEM POR DATA
+    data_inicio = request.args.get('dataInicio')
+    data_fim = request.args.get('dataFim')
+    if data_inicio and data_fim:
+        df_compras = df_compras[
+            (df_compras['dataEntrada'] >= data_inicio) & (df_compras['dataEntrada'] <= data_fim)
+        ]
+
+    if df_compras.empty:
+        return jsonify(compras_data=[])
+
+    # 3. PROCESSAMENTO E ENRIQUECIMENTO DOS DADOS
+    # Função auxiliar para converter a coluna 'itens' (que é uma string JSON) para uma lista de objetos
+    def safe_json_loads(s):
+        if isinstance(s, str):
+            try:
+                return json.loads(s)
+            except (json.JSONDecodeError, TypeError):
+                return [] # Retorna lista vazia se a string for inválida
+        return s if isinstance(s, list) else []
+
+    df_compras['itens'] = df_compras['itens'].apply(safe_json_loads)
+    
+    # "Explode" o DataFrame para que cada item de uma nota de compra vire uma linha
+    df_flat = df_compras.explode('itens').reset_index(drop=True)
+
+    # Normaliza a coluna 'itens' (que agora contém dicionários) em colunas separadas
+    df_itens_normalized = pd.json_normalize(df_flat['itens'])
+    
+    # Junta o DataFrame original (sem a coluna 'itens') com as novas colunas dos itens
+    df_flat = pd.concat([df_flat.drop(columns=['itens']), df_itens_normalized], axis=1)
+
+    # 4. JUNÇÃO (MERGE) COM FORNECEDORES E PRODUTOS PARA OBTER NOMES
+    # Padroniza os tipos das chaves para a junção
+    df_flat['codigoFornecedor'] = df_flat['codigoFornecedor'].astype(str)
+    df_flat['codigoProduto'] = df_flat['codigoProduto'].astype(str)
+    df_fornecedores['codigo'] = df_fornecedores['codigo'].astype(str)
+    df_produtos['codigo'] = df_produtos['codigo'].astype(str)
+
+    # Junta com fornecedores
+    df_merged = pd.merge(df_flat, df_fornecedores[['codigo', 'nomeFantasia']], left_on='codigoFornecedor', right_on='codigo', how='left')
+
+    df_merged.rename(columns={'nomeFantasia': 'nomeFornecedor'}, inplace=True)
+    df_merged['nomeFornecedor'].fillna('Fornecedor não encontrado', inplace=True)
+    
+    # Junta com produtos
+    df_final = pd.merge(df_merged, df_produtos[['codigo', 'nome']], left_on='codigoProduto', right_on='codigo', how='left')
+    df_final.rename(columns={'nome': 'descricaoProduto'}, inplace=True)
+    df_final['descricaoProduto'].fillna('Produto não encontrado', inplace=True)
+    
+    # 5. AJUSTE FINAL DAS COLUNAS PARA O FRONT-END
+    # Renomeia e calcula colunas para corresponder ao que o JavaScript espera
+    df_final.rename(columns={
+        'numeroNotaFiscal': 'numeroNota',
+        'quantidadeProdutos': 'quantidade'
+    }, inplace=True)
+    
+    # Calcula o valor total do item
+    df_final['valorTotal'] = pd.to_numeric(df_final['quantidade'], errors='coerce').fillna(0) * pd.to_numeric(df_final['valorUnitario'], errors='coerce').fillna(0)
+
+    # Seleciona e ordena as colunas que serão enviadas
+    colunas_finais = [
+        'numeroNota', 'dataEntrada', 'codigoFornecedor', 'nomeFornecedor', 'valorTotalNota', 'valorTotalProdutos',
+        'codigoProduto', 'descricaoProduto', 'quantidade', 'valorUnitario', 'valorTotal'
+    ]
+    df_final = df_final[[col for col in colunas_finais if col in df_final.columns]]
+
+    # 6. RETORNO DOS DADOS EM FORMATO JSON
+    compras_data = json.loads(df_final.to_json(orient='records', date_format='iso'))
+    return jsonify(compras_data=compras_data)
 
 
 # ==============================================================================

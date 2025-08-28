@@ -222,7 +222,11 @@
             options: { 
                 responsive: true, 
                 maintainAspectRatio: false,
-                layout: { padding: { bottom: 20 } }
+                layout: { padding: { bottom: 20 } },
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                }
             }
         });
     }
@@ -245,11 +249,16 @@
                 }]
             },
             options: { 
-                indexAxis: 'y', // Define o gráfico como de barras horizontais.
+                indexAxis: 'y',
                 responsive: true, 
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: false } // Esconde a legenda, pois a informação já está no título.
+                   legend: { display: false }
+                },
+                interaction: {
+                    mode: 'index', // ou 'nearest'
+                    intersect: false,
+                    axis: 'y' // Importante para barras horizontais
                 }
             }
         });
@@ -273,11 +282,16 @@
                 }]
             },
             options: { 
-                indexAxis: 'y', // Define o gráfico como de barras horizontais.
+                indexAxis: 'y',
                 responsive: true, 
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: false } // Esconde a legenda.
+                    legend: { display: false }
+                },
+                interaction: {
+                    mode: 'index', // ou 'nearest'
+                    intersect: false,
+                    axis: 'y' // Importante para barras horizontais
                 }
             }
         });
