@@ -4,7 +4,7 @@
 {% block title %}Análise de Vendas{% endblock %}
 
 {% block page_styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/analise_vendas.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendas.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -29,7 +29,7 @@
             <canvas id="vendasPorEntregaChart"></canvas>
         </div>
     </div>
-    <h2>NOTAS EMITIDAS</h2>
+    <h2>NOTAS DE VENDAS E DEVOLUÇÕES</h2>
     <div class="table-wrapper" id="tabelaContainerPrincipais"></div>
     <div class="paginacao-container" id="paginacaoContainerPrincipais"></div>
     

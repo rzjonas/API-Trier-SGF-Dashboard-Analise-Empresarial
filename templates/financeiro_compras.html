@@ -14,7 +14,7 @@
             <p id="card-total-notas">0</p>
         </div>
         <div class="resumo-card-compras valor-liquido-comprado">
-            <h4>Valor Total Líquido</h4>
+            <h4>Valor Total Produtos</h4>
             <p id="card-valor-bruto">R$ 0,00</p>
         </div>
         <div class="resumo-card-compras valor-nota-final">
@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- MAPEAMENTO DE COLUNAS ---
     const mapeamentoColunas = {
         "numeroNota": "Nº Nota", "dataEntrada": "Data Entrada", "nomeFornecedor": "Fornecedor",
-        "TotalBruto": "Total Líquido", "TotalLiquido": "Total Nota",
+        "TotalProdutos": "Total Produtos", "TotalNota": "Total Nota",
         "codigoProduto": "Cód. Produto", "descricaoProduto": "Descrição Produto",
         "quantidade": "Qtd", "valorUnitario": "Vlr. Unit.", "valorTotal": "Vlr. Total"
     };
@@ -117,41 +117,49 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /**
      * Processa os dados brutos da API, agrupando itens por nota de compra.
+     * CÁLCULO CORRIGIDO: Agora soma os itens para ter um total mais confiável.
      */
     function processarDados(dadosPlanos) {
         dadosAgrupados = {};
-        // Adiciona os totais da nota às colunas de informação principal
-        const colunasInfoCompra = ["numeroNota", "dataEntrada", "nomeFornecedor", "valorTotalProdutos", "valorTotalNota"];
+        const colunasInfoCompra = ["numeroNota", "dataEntrada", "nomeFornecedor", "valorTotalNota"];
         cabecalhoItem = ["codigoProduto", "descricaoProduto", "quantidade", "valorUnitario", "valorTotal"];
-        cabecalhoCompra = ["numeroNota", "dataEntrada", "nomeFornecedor", "TotalBruto", "TotalLiquido"];
+        cabecalhoCompra = ["numeroNota", "dataEntrada", "nomeFornecedor", "TotalProdutos", "TotalNota"];
         
         dadosPlanos.forEach(linha => {
             const notaId = linha.numeroNota;
             if (!dadosAgrupados[notaId]) {
-                dadosAgrupados[notaId] = { info: {}, itens: [], totais: { bruto: linha.valorTotalProdutos || 0, liquido: linha.valorTotalNota || 0 }}; // Usa os totais da nota diretamente
+                dadosAgrupados[notaId] = { 
+                    info: {}, 
+                    itens: [], 
+                    // Inicia os totais. O total da nota vem do header, o total dos produtos será somado.
+                    totais: { produtos: 0, nota: linha.valorTotalNota || 0 }
+                };
                 colunasInfoCompra.forEach(col => dadosAgrupados[notaId].info[col] = linha[col]);
             }
             const item = {};
             cabecalhoItem.forEach(col => item[col] = linha[col]);
             dadosAgrupados[notaId].itens.push(item);
 
-            // A soma dos totais agora será feita na função renderizarCards, usando os valores já armazenados.
+            // SOMA O VALOR TOTAL DE CADA ITEM PARA O TOTAL DE PRODUTOS DA NOTA
+            dadosAgrupados[notaId].totais.produtos += parseFloat(linha.valorTotal || 0);
         });
     }
 
     /**
      * Atualiza os valores nos cards de resumo.
+     * CÁLCULO CORRIGIDO: Usa os totais de produtos somados dos itens.
      */
     function renderizarCards() {
         const notas = Object.values(dadosAgrupados);
         const totalNotas = notas.length;
-        // Calcula os totais diretamente dos valores de cada nota, que são mais precisos.
-        const totalBruto = notas.reduce((acc, nota) => acc + (nota.totais.bruto || 0), 0);
-        const totalLiquido = notas.reduce((acc, nota) => acc + (nota.totais.liquido || 0), 0);
+        
+        // Usa os totais calculados para maior precisão.
+        const totalProdutos = notas.reduce((acc, nota) => acc + (nota.totais.produtos || 0), 0);
+        const totalNota = notas.reduce((acc, nota) => acc + (nota.totais.nota || 0), 0);
 
         elements.cardTotalNotas.textContent = totalNotas.toLocaleString('pt-BR');
-        elements.cardValorBruto.textContent = formatarMoeda(totalBruto);
-        elements.cardValorLiquido.textContent = formatarMoeda(totalLiquido);
+        elements.cardValorBruto.textContent = formatarMoeda(totalProdutos);
+        elements.cardValorLiquido.textContent = formatarMoeda(totalNota);
     }
 
     /**
@@ -165,7 +173,6 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.tabelaContainer.innerHTML = criarHtmlDeTabela(dadosDaPagina);
         elements.paginacaoContainer.innerHTML = criarControlesPaginacao();
         
-        // Reatribui o event listener após renderizar a tabela
         document.querySelectorAll('.linha-compra').forEach(row => {
             row.addEventListener('click', toggleDetails);
         });
@@ -190,7 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let classe = '';
                 if (info[col] !== undefined) {
                     if (col === 'dataEntrada') {
-                        const partes = (info[col] || '').split('-');
+                        const partes = (info[col] || '').split('T')[0].split('-');
                         valor = partes.length === 3 ? `${partes[2]}/${partes[1]}/${partes[0]}` : info[col];
                     } else {
                         valor = info[col] || '';
@@ -198,9 +205,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (col === 'numeroNota') classe = 'nota-clicavel';
                 } else {
                     classe = 'col-numerica';
-                    // Usa os totais da nota que foram armazenados
-                    if (col === 'TotalBruto') valor = formatarMoeda(totais.bruto);
-                    else if (col === 'TotalLiquido') valor = formatarMoeda(totais.liquido);
+                    if (col === 'TotalProdutos') valor = formatarMoeda(totais.produtos);
+                    else if (col === 'TotalNota') valor = formatarMoeda(totais.nota);
                 }
                 tableHTML += `<td class="${classe}">${valor}</td>`;
             });

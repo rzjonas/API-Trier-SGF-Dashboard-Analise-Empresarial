@@ -44,6 +44,7 @@ def carregar_e_processar_dados():
     """
     Carrega os dados de VENDAS e VENDEDORES do banco de dados SQLite.
     Implementa um sistema de cache para evitar leituras repetidas do banco.
+    Aplica a lógica de negócio para negativar valores de devolução.
     """
     # Torna as variáveis de cache globais acessíveis dentro da função.
     global _df_final_cache, _df_vendedores_cache, _cache_timestamp
@@ -68,6 +69,22 @@ def carregar_e_processar_dados():
     except Exception as e:
         logging.error(f"Erro crítico ao ler tabelas de vendas: {e}", exc_info=True)
         return pd.DataFrame(), pd.DataFrame()
+
+    # --- INÍCIO DA LÓGICA DE AJUSTE PARA DEVOLUÇÕES ---
+    # Define as colunas financeiras e de quantidade que precisam ter o sinal invertido para devoluções.
+    colunas_para_ajuste = ['valorTotalCusto', 'valorTotalBruto', 'valorTotalLiquido', 'quantidadeProdutos']
+    for col in colunas_para_ajuste:
+        if col in df_final.columns:
+            # Garante que a coluna seja numérica, tratando erros e valores nulos como 0.
+            df_final[col] = pd.to_numeric(df_final[col], errors='coerce').fillna(0)
+            
+            # Cria uma condição para encontrar apenas as linhas de devolução com valores positivos.
+            # Isso evita inverter o sinal de um valor que, porventura, já esteja negativo.
+            devolucoes_com_valor_positivo = (df_final['status_venda'] == 'DEVOLUÇÃO') & (df_final[col] > 0)
+            
+            # Usa a condição para selecionar as células específicas e multiplicar seu valor por -1.
+            df_final.loc[devolucoes_com_valor_positivo, col] *= -1
+    # --- FIM DA LÓGICA DE AJUSTE PARA DEVOLUÇÕES ---
 
     # 3. ATUALIZAÇÃO DO CACHE
     _df_final_cache = df_final
@@ -119,14 +136,10 @@ def carregar_dados_compras():
 # Define as rotas (URLs) que o usuário pode acessar e qual página HTML será mostrada.
 
 @app.route('/')
-def dashboard_geral_page():
-    """ Rota para a página principal (Dashboard Geral). """
-    return render_template('dashboard_geral.html')
-
 @app.route('/analise-vendas')
-def analise_vendas_page():
-    """ Rota para a página de Análise de Vendas. """
-    return render_template('analise_vendas.html')
+def vendas_page():
+    """ Rota para a página de Análise de Vendas (Página Inicial). """
+    return render_template('vendas.html')
 
 @app.route('/produtos-estoque')
 def produtos_estoque_page():
@@ -140,7 +153,7 @@ def financeiro_compras_page():
 
 @app.route('/desempenho')
 def desempenho_page():
-    """ Rota para a página de Desempenho (em construção). """
+    """ Rota para a página de Desempenho (antigo Dashboard Geral). """
     return render_template('desempenho.html')
 
 
@@ -181,6 +194,8 @@ def api_dashboard_data():
     # Realiza as agregações apenas se houver dados no DataFrame.
     if not df_final.empty:
         # Filtra apenas as vendas com status 'OK' para os cálculos.
+        # Devido à lógica de negativar devoluções, não precisamos mais filtrar por status aqui para os totais.
+        # No entanto, para análises específicas de "vendas puras", mantemos o filtro 'OK'.
         df_ok = df_final[df_final['status_venda'] == 'OK'].copy()
         if not df_ok.empty:
             # Agrupa por condição de pagamento e soma o valor total líquido.
@@ -243,11 +258,11 @@ def api_graficos_data():
     
     return jsonify(dados_graficos)
 
-@app.route('/api/dados-dashboard-geral')
-def api_dashboard_geral_data():
+@app.route('/api/dados-desempenho')
+def api_desempenho_data():
     """
-    API principal para o 'Dashboard Geral'.
-    Calcula e retorna todos os KPIs e dados agregados para os gráficos da página inicial,
+    API principal para a página de 'Desempenho' (antigo Dashboard Geral).
+    Calcula e retorna todos os KPIs e dados agregados para os gráficos da página,
     incluindo a comparação com o período anterior.
     """
     df_final, _ = carregar_e_processar_dados()
@@ -336,7 +351,7 @@ def api_dashboard_geral_data():
 @app.route('/api/dados-produtos-estoque')
 def api_produtos_estoque_data():
     """
-    API para a página de 'Produtos & Estoque'.
+    API para a página de 'Produtos/Estoque'.
     Fornece indicadores de estoque, dados para a curva ABC, gráficos de top produtos
     e uma tabela detalhada de análise de produtos (vendas, custo, lucro, margem, giro).
     """
@@ -425,11 +440,11 @@ def api_produtos_estoque_data():
     return jsonify(indicadores=indicadores, curva_abc=curva_abc, graficos_top=graficos_top, tabela_produtos=tabela_json)
 
 
-# --- NOVO: Endpoint da API para a página de Financeiro & Compras ---
+# --- Endpoint da API para a página de Financeiro/Compras ---
 @app.route('/api/dados-financeiro-compras')
 def api_financeiro_compras_data():
     """
-    API para a página 'Financeiro & Compras'.
+    API para a página 'Financeiro/Compras'.
     Fornece dados detalhados das notas de compra, enriquecidos com nomes de 
     fornecedores e produtos, prontos para serem exibidos na tabela.
     """

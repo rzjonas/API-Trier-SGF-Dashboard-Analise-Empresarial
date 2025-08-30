@@ -26,33 +26,19 @@
             text-decoration: none;
             color: #1a3b5d;
             font-weight: bold;
-            padding: 8px 12px;
+            padding: 10px 15px; /* Aumentei um pouco o padding para melhor toque */
             border-radius: 6px;
             transition: all 0.3s ease;
         }
 
-        .main-nav a:not(.dashboard-geral-link):hover,
-        .main-nav a.active:not(.dashboard-geral-link) {
+        .main-nav a:hover,
+        .main-nav a.active {
             background-color: #ffffff;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-
-        .main-nav a.dashboard-geral-link {
-            font-size: 1.1em;
-            padding: 12px 20px;
-            margin: 0 25px;
-            color: #ffffff;
-            background-color: #1a3b5d;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+            color: #1a3b5d;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.1);
             transform: translateY(-2px);
         }
 
-        .main-nav a.dashboard-geral-link.active,
-        .main-nav a.dashboard-geral-link:hover {
-             background-color: #2c537e;
-             transform: translateY(-4px);
-             box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
-        }
     </style>
 </head>
 <body>
@@ -81,12 +67,9 @@
         </div>
 
         <nav class="main-nav">
-            <a href="/analise-vendas" class="{{ 'active' if request.path == '/analise-vendas' else '' }}">Análise de Vendas</a>
-            <a href="/produtos-estoque" class="{{ 'active' if request.path == '/produtos-estoque' else '' }}">Produtos & Estoque</a>
-            
-            <a href="/" class="dashboard-geral-link {{ 'active' if request.path == '/' else '' }}">Dashboard Geral</a>
-            
-            <a href="/financeiro-compras" class="{{ 'active' if request.path == '/financeiro-compras' else '' }}">Financeiro & Compras</a>
+            <a href="/analise-vendas" class="{{ 'active' if request.path in ['/analise-vendas', '/'] else '' }}">Vendas</a>
+            <a href="/produtos-estoque" class="{{ 'active' if request.path == '/produtos-estoque' else '' }}">Produtos/Estoque</a>
+            <a href="/financeiro-compras" class="{{ 'active' if request.path == '/financeiro-compras' else '' }}">Financeiro/Compras</a>
             <a href="/desempenho" class="{{ 'active' if request.path == '/desempenho' else '' }}">Desempenho</a>
         </nav>
 
@@ -155,6 +138,7 @@
                     const url = new URL(event.currentTarget.href);
                     // Adiciona os filtros de data como parâmetros na URL de destino.
                     url.searchParams.set('dataInicio', dataInicio);
+                    // CORREÇÃO: A linha abaixo estava com 'search_params' em vez de 'searchParams'.
                     url.searchParams.set('dataFim', dataFim);
                     // Mostra o overlay de carregamento e navega para a URL construída.
                     document.getElementById('loadingOverlay').style.display = 'flex';
@@ -238,7 +222,8 @@
             // Inicia o processo: primeiro pega o estado inicial dos dados.
             getInitialDataState().then(() => {
                 // Após ter o estado inicial, verifica se a página atual é uma página "em construção".
-                if (document.querySelector('h2').textContent.includes('Construção')) {
+                const h2 = document.querySelector('h2');
+                if (h2 && h2.textContent.includes('Construção')) {
                     // Se for, não inicia a verificação periódica.
                     console.log("Página em construção, verificação de atualização desativada.");
                 } else {

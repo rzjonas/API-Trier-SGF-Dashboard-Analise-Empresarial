@@ -1,1 +1,285 @@
-/* Estilos específicos para a página de Desempenho podem ser adicionados aqui. */
+/* ==========================================================================
+   Estilos para o Dashboard Geral
+   ========================================================================== */
+
+/* Define a estrutura principal do dashboard usando Grid Layout. */
+.dashboard-grid {
+    /* Ativa o modo de exibição em grade (Grid). */
+    display: grid;
+    /* Cria uma grade com 12 colunas de larguras iguais (1fr cada). */
+    grid-template-columns: repeat(12, 1fr);
+    /* Define um espaçamento de 20px entre os itens da grade. */
+    gap: 20px;
+    /* Adiciona uma margem no topo para separar do conteúdo acima. */
+    margin-top: 35px;
+}
+
+/* Estiliza os cartões de indicadores chave de desempenho (KPI). */
+.kpi-card {
+    /* Faz o cartão ocupar 6 das 12 colunas da grade (metade da largura). */
+    grid-column: span 6;
+    /* Define a cor de fundo do cartão. */
+    background-color: #f8f9fa;
+    /* Adiciona preenchimento interno. */
+    padding: 20px;
+    /* Arredonda as bordas. */
+    border-radius: 8px;
+    /* Adiciona uma borda colorida à esquerda para destaque visual. */
+    border-left: 5px solid #1a3b5d;
+    /* Centraliza o texto dentro do cartão. */
+    text-align: center;
+}
+
+/* Estiliza o título (h4) dentro dos cartões de KPI. */
+.kpi-card h4 {
+    /* Remove a margem padrão e adiciona uma margem inferior. */
+    margin: 0 0 10px 0;
+    /* Define a cor do texto do título. */
+    color: #7f8c8d;
+    /* Define o tamanho da fonte. */
+    font-size: 14px;
+    /* Transforma o texto para maiúsculas. */
+    text-transform: uppercase;
+    /* Utiliza Flexbox para alinhar o título e um possível ícone. */
+    display: flex;
+    justify-content: center; /* Centraliza horizontalmente. */
+    align-items: center;    /* Centraliza verticalmente. */
+    gap: 8px;               /* Adiciona espaço entre o texto e o ícone. */
+}
+
+/* Estiliza o parágrafo (p) que contém o valor principal do KPI. */
+.kpi-card p {
+    /* Remove a margem padrão. */
+    margin: 0;
+    /* Aumenta o tamanho da fonte para dar destaque ao número. */
+    font-size: 28px;
+    /* Deixa a fonte em negrito. */
+    font-weight: bold;
+    /* Define a cor do texto. */
+    color: #1a3b5d;
+}
+
+/* Estiliza o cartão de comparação, que ocupa a largura total. */
+.comparativo-card {
+    /* Faz o cartão ocupar todas as 12 colunas da grade. */
+    grid-column: span 12;
+    /* Define a cor de fundo. */
+    background-color: #f8f9fa;
+    /* Adiciona preenchimento interno. */
+    padding: 15px;
+    /* Arredonda as bordas. */
+    border-radius: 8px;
+    /* Centraliza o texto. */
+    text-align: center;
+    /* Adiciona uma borda sutil. */
+    border: 1px solid #eef2f7;
+}
+
+/* Estiliza o valor numérico dentro do cartão de comparação. */
+.comparativo-valor {
+    /* Define o tamanho da fonte. */
+    font-size: 24px;
+    /* Deixa a fonte em negrito. */
+    font-weight: bold;
+    /* Permite a aplicação de padding e outras propriedades de bloco. */
+    display: inline-block;
+    /* Adiciona preenchimento interno para criar um fundo destacado. */
+    padding: 5px 10px;
+    /* Arredonda as bordas do fundo. */
+    border-radius: 6px;
+    /* Define a cor do texto. */
+    color: white;
+}
+
+/* Estiliza o contêiner padrão para gráficos. */
+.grafico-container {
+    /* Faz o contêiner ocupar 6 das 12 colunas (metade da largura). */
+    grid-column: span 6;
+    /* Define a cor de fundo. */
+    background-color: #ffffff;
+    /* Adiciona preenchimento interno. */
+    padding: 20px;
+    /* Arredonda as bordas. */
+    border-radius: 8px;
+    /* Adiciona uma sombra sutil para profundidade. */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    /* Adiciona uma borda sutil. */
+    border: 1px solid #eef2f7;
+    /* Define uma altura fixa para o contêiner. */
+    height: 400px;
+    /* Utiliza Flexbox para organizar o conteúdo interno (título, gráfico) em coluna. */
+    display: flex;
+    flex-direction: column;
+}
+
+/* Estiliza o título (h3) dentro dos contêineres de gráfico. */
+.grafico-container h3 {
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #1a3b5d;
+}
+
+
+/* Estiliza o contêiner para o mapa de calor (heatmap). */
+.mapa-calor-container {
+    /* Faz o contêiner ocupar 6 das 12 colunas (metade da largura). */
+    grid-column: span 6;
+    /* Estilos visuais idênticos ao .grafico-container para consistência. */
+    padding: 20px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    height: 400px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Estiliza o título (h3) dentro do contêiner do mapa de calor. */
+.mapa-calor-container h3 {
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #1a3b5d;
+}
+
+/* Cria um wrapper para a tabela do mapa de calor para permitir rolagem. */
+.mapa-calor-table-wrapper {
+    /* Habilita a rolagem (vertical e horizontal) se o conteúdo exceder o tamanho do wrapper. */
+    overflow: auto;
+    /* Faz com que o wrapper ocupe todo o espaço vertical disponível no contêiner flex. */
+    flex-grow: 1;
+}
+
+/* Estilos base para a tabela do mapa de calor. */
+.mapa-calor-table {
+    width: 100%;
+    border-collapse: collapse;
+    /* Garante que as colunas da tabela tenham larguras fixas. */
+    table-layout: fixed;
+}
+
+/* Estiliza as células de cabeçalho (th) e de dados (td) da tabela. */
+.mapa-calor-table th, .mapa-calor-table td {
+    border: 1px solid #eef2f7;
+    text-align: center;
+    font-size: 11px;
+    padding: 5px 2px;
+}
+
+/* Estiliza especificamente as células de cabeçalho (th). */
+.mapa-calor-table th {
+    background-color: #f8f9fa;
+    font-weight: bold;
+    color: #333;
+}
+
+/* Estiliza as células de dados (td) da tabela. */
+.mapa-calor-table td {
+    height: 30px;
+    /* Altera o cursor para indicar que a célula é clicável/interativa. */
+    cursor: pointer;
+    /* Adiciona uma transição suave para as propriedades transform e box-shadow. */
+    transition: transform 0.1s ease-in-out, box-shadow 0.1s ease-in-out;
+}
+
+/* Efeito de hover para as células de dados: faz a célula "saltar". */
+.mapa-calor-table td:hover {
+    /* Aumenta ligeiramente o tamanho da célula. */
+    transform: scale(1.1);
+    /* Adiciona uma sombra para dar a impressão de elevação. */
+    box-shadow: 0 0 10px rgba(0,0,0,0.3);
+    /* Garante que a célula em hover fique acima das outras. */
+    z-index: 10;
+    position: relative;
+}
+
+/* Estiliza o tooltip (span) dentro de cada célula da tabela. */
+.mapa-calor-table td span {
+    /* Esconde o tooltip por padrão. */
+    visibility: hidden;
+    /* Posiciona o tooltip de forma absoluta em relação à célula (td). */
+    position: absolute;
+    /* Estilos visuais do tooltip. */
+    background-color: #34495e;
+    color: #fff;
+    padding: 5px;
+    border-radius: 4px;
+    z-index: 20; /* Garante que fique acima da célula elevada. */
+    white-space: nowrap; /* Impede a quebra de linha no texto do tooltip. */
+    /* Posicionamento do tooltip acima da célula. */
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%); /* Centraliza horizontalmente. */
+}
+
+/* Exibe o tooltip quando o mouse está sobre a célula. */
+.mapa-calor-table td:hover span {
+    visibility: visible;
+}
+
+/* ==========================================================================
+   Responsividade para Telas Menores
+   ========================================================================== */
+@media (max-width: 992px) {
+    /* Em telas com largura máxima de 992px, faz com que os elementos principais... */
+    .kpi-card, .grafico-container, .mapa-calor-container {
+        /* ...ocupem a largura total (12 colunas), empilhando-os verticalmente. */
+        grid-column: span 12;
+    }
+}
+
+/* ==========================================================================
+   Estilos Reutilizáveis de Tooltip
+   ========================================================================== */
+
+/* Contêiner que envolve o ícone de informação e o texto do tooltip. */
+.tooltip-container {
+    position: relative;
+    display: inline-block;
+}
+
+/* Estiliza o ícone de informação "i". */
+.info-icon {
+    color: #5dade2;
+    border: 1.5px solid #aed6f1;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 12px;
+    cursor: help;
+}
+
+/* Estiliza a caixa de texto do tooltip. */
+.tooltip-text {
+    /* Esconde por padrão e define a aparência. */
+    visibility: hidden;
+    width: 250px;
+    background-color: #34495e;
+    color: #fff;
+    text-align: left;
+    border-radius: 6px;
+    padding: 10px;
+    /* Posicionamento absoluto, acima do ícone. */
+    position: absolute;
+    z-index: 10;
+    bottom: 150%;
+    left: 50%;
+    margin-left: -125px; /* Metade da largura para centralizar. */
+    /* Efeito de transição para o surgimento. */
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    /* Estilos de fonte. */
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: none;
+}
+
+/* Exibe o tooltip ao passar o mouse sobre o contêiner. */
+.tooltip-container:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+}
