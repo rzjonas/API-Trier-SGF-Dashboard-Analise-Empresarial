@@ -27,12 +27,12 @@ app = Flask(__name__)
 # Isso evita a leitura do banco de dados a cada requisição, melhorando o desempenho.
 _df_final_cache = None       # Armazena o DataFrame de vendas processadas.
 _df_vendedores_cache = None  # Armazena o DataFrame de vendedores.
+_df_produtos_cache = None     # Armazena o DataFrame de produtos (agora compartilhado).
 _cache_timestamp = None      # Guarda o momento em que o cache de vendas foi criado.
 
 # --- NOVO: Cache para dados de Compras ---
 _df_compras_cache = None      # Armazena o DataFrame de compras.
 _df_fornecedores_cache = None # Armazena o DataFrame de fornecedores.
-_df_produtos_cache = None     # Armazena o DataFrame de produtos.
 _compras_cache_timestamp = None # Guarda o momento em que o cache de compras foi criado.
 
 CACHE_DURATION_MINUTES = 5   # Define o tempo de validade do cache em minutos.
@@ -42,58 +42,63 @@ CACHE_DURATION_MINUTES = 5   # Define o tempo de validade do cache em minutos.
 # ==============================================================================
 def carregar_e_processar_dados():
     """
-    Carrega os dados de VENDAS e VENDEDORES do banco de dados SQLite.
+    Carrega os dados de VENDAS, VENDEDORES e PRODUTOS do banco de dados SQLite.
     Implementa um sistema de cache para evitar leituras repetidas do banco.
-    Aplica a lógica de negócio para negativar valores de devolução.
+    Aplica a lógica de negócio para negativar valores de devolução e enriquece
+    os dados de vendas com informações dos produtos (categoria).
     """
     # Torna as variáveis de cache globais acessíveis dentro da função.
-    global _df_final_cache, _df_vendedores_cache, _cache_timestamp
+    global _df_final_cache, _df_vendedores_cache, _df_produtos_cache, _cache_timestamp
 
     # 1. VERIFICAÇÃO DO CACHE
     if _df_final_cache is not None and _cache_timestamp is not None:
         cache_age = datetime.now() - _cache_timestamp
         if cache_age < timedelta(minutes=CACHE_DURATION_MINUTES):
+            # Retorna cópias para evitar modificações acidentais no cache.
             return _df_final_cache.copy(), _df_vendedores_cache.copy()
 
     # 2. CARREGAMENTO DOS DADOS
     conn_str = f'sqlite:///{cfg.DATABASE_FILE}'
     df_final = pd.DataFrame()
     df_vendedores = pd.DataFrame()
+    df_produtos = pd.DataFrame()
 
     try:
         df_final = pd.read_sql_table('vendas_processadas', conn_str)
         df_vendedores = pd.read_sql_table('vendedores', conn_str)
-        logging.info(f"Carregados {len(df_final)} registros de vendas e {len(df_vendedores)} vendedores do banco de dados.")
+        df_produtos = pd.read_sql_table('produtos', conn_str) # Carrega os dados de produtos
+        logging.info(f"Carregados {len(df_final)} registros de vendas, {len(df_vendedores)} vendedores e {len(df_produtos)} produtos do banco.")
     except ValueError as e:
-        logging.warning(f"Aviso ao carregar dados de vendas: {e}. A tabela pode não existir.")
+        logging.warning(f"Aviso ao carregar dados de vendas: {e}. Uma das tabelas pode não existir.")
+        return pd.DataFrame(), pd.DataFrame()
     except Exception as e:
         logging.error(f"Erro crítico ao ler tabelas de vendas: {e}", exc_info=True)
         return pd.DataFrame(), pd.DataFrame()
 
-    # --- INÍCIO DA LÓGICA DE AJUSTE PARA DEVOLUÇÕES ---
-    # Define as colunas financeiras e de quantidade que precisam ter o sinal invertido para devoluções.
+    # --- INÍCIO DA LÓGICA DE AJUSTE PARA DEVOLUÇÕES --- (BLOCO CORRIGIDO)
     colunas_para_ajuste = ['valorTotalCusto', 'valorTotalBruto', 'valorTotalLiquido', 'quantidadeProdutos']
     for col in colunas_para_ajuste:
         if col in df_final.columns:
-            # Garante que a coluna seja numérica, tratando erros e valores nulos como 0.
             df_final[col] = pd.to_numeric(df_final[col], errors='coerce').fillna(0)
             
-            # Cria uma condição para encontrar apenas as linhas de devolução com valores positivos.
-            # Isso evita inverter o sinal de um valor que, porventura, já esteja negativo.
-            devolucoes_com_valor_positivo = (df_final['status_venda'] == 'DEVOLUÇÃO') & (df_final[col] > 0)
-            
-            # Usa a condição para selecionar as células específicas e multiplicar seu valor por -1.
-            df_final.loc[devolucoes_com_valor_positivo, col] *= -1
+            # Define a condição para encontrar todas as linhas de devolução
+            devolucoes = (df_final['status_venda'] == 'DEVOLUÇÃO')
+        
+            # Aplica a lógica robusta: pega o valor absoluto e o torna negativo
+            # Isso garante que tanto 50 quanto -50 se tornem -50 no final
+            df_final.loc[devolucoes, col] = -df_final.loc[devolucoes, col].abs()
     # --- FIM DA LÓGICA DE AJUSTE PARA DEVOLUÇÕES ---
 
     # 3. ATUALIZAÇÃO DO CACHE
     _df_final_cache = df_final
     _df_vendedores_cache = df_vendedores
+    _df_produtos_cache = df_produtos # Armazena o df de produtos no cache compartilhado
     _cache_timestamp = datetime.now()
     
     return df_final.copy(), df_vendedores.copy()
 
-# --- NOVO: Função de carregamento de dados para a página de Compras ---
+
+# --- Função de carregamento de dados para a página de Compras ---
 def carregar_dados_compras():
     """
     Carrega os dados de COMPRAS, FORNECEDORES e PRODUTOS do banco de dados SQLite.
@@ -114,7 +119,14 @@ def carregar_dados_compras():
     try:
         df_compras = pd.read_sql_table('compras', conn_str)
         df_fornecedores = pd.read_sql_table('fornecedores', conn_str)
-        df_produtos = pd.read_sql_table('produtos', conn_str)
+        
+        # Reutiliza o cache de produtos se já tiver sido carregado pela função de vendas
+        if _df_produtos_cache is not None and (datetime.now() - _cache_timestamp) < timedelta(minutes=CACHE_DURATION_MINUTES):
+             df_produtos = _df_produtos_cache.copy()
+        else:
+            df_produtos = pd.read_sql_table('produtos', conn_str)
+            _df_produtos_cache = df_produtos.copy() # Atualiza o cache compartilhado
+
         logging.info(f"Carregados {len(df_compras)} registros de compras, {len(df_fornecedores)} fornecedores e {len(df_produtos)} produtos.")
     except ValueError as e:
         logging.warning(f"Aviso ao carregar dados de compras: {e}. Uma das tabelas pode não existir.")
@@ -125,7 +137,6 @@ def carregar_dados_compras():
     # 3. ATUALIZAÇÃO DO CACHE
     _df_compras_cache = df_compras
     _df_fornecedores_cache = df_fornecedores
-    _df_produtos_cache = df_produtos
     _compras_cache_timestamp = datetime.now()
     
     return df_compras.copy(), df_fornecedores.copy(), df_produtos.copy()
@@ -168,7 +179,7 @@ def api_dashboard_data():
     """
     API para a página 'Análise de Vendas'.
     Fornece dados brutos de vendas, lista de vendedores e agregações para
-    os gráficos (vendas por pagamento, hora, vendedor e entrega).
+    os gráficos (vendas por pagamento, hora, vendedor, entrega, categoria e devoluções).
     Aceita os parâmetros 'dataInicio' and 'dataFim' via URL.
     """
     # Carrega os dados, utilizando o cache se possível.
@@ -176,7 +187,7 @@ def api_dashboard_data():
 
     # Se não houver dados, retorna uma estrutura JSON vazia.
     if df_final.empty:
-        return jsonify(sales_data=[], all_sellers=[], vendas_por_pagamento={}, vendas_por_hora={}, vendas_por_vendedor={}, vendas_por_entrega={})
+        return jsonify(sales_data=[], all_sellers=[], vendas_por_pagamento={}, vendas_por_hora={}, vendas_por_vendedor={}, vendas_por_entrega={}, vendas_por_categoria={}, top_10_produtos_devolvidos_qtd={})
 
     # Pega as datas de início e fim dos parâmetros da URL (ex: ?dataInicio=2025-01-01).
     data_inicio = request.args.get('dataInicio')
@@ -189,43 +200,53 @@ def api_dashboard_data():
         ]
 
     # Dicionários para armazenar os dados agregados para os gráficos.
-    vendas_por_pagamento, vendas_por_hora, vendas_por_vendedor, vendas_por_entrega = {}, {}, {}, {}
+    vendas_por_pagamento, vendas_por_hora, vendas_por_vendedor, vendas_por_entrega, vendas_por_categoria, top_10_produtos_devolvidos_qtd = {}, {}, {}, {}, {}, {}
 
     # Realiza as agregações apenas se houver dados no DataFrame.
     if not df_final.empty:
-        # Filtra apenas as vendas com status 'OK' para os cálculos.
-        # Devido à lógica de negativar devoluções, não precisamos mais filtrar por status aqui para os totais.
-        # No entanto, para análises específicas de "vendas puras", mantemos o filtro 'OK'.
+        # Filtra apenas as vendas com status 'OK' para os cálculos de vendas.
         df_ok = df_final[df_final['status_venda'] == 'OK'].copy()
+
+        # Filtra apenas as devoluções para o gráfico de produtos devolvidos.
+        df_devolucoes = df_final[df_final['status_venda'] == 'DEVOLUÇÃO'].copy()
+        
         if not df_ok.empty:
-            # Agrupa por condição de pagamento e soma o valor total líquido.
+            # Agregações para os gráficos existentes.
             vendas_por_pagamento = df_ok.groupby('condicaoPagamento_nome')['valorTotalLiquido'].sum().sort_values(ascending=False).to_dict()
-            
-            # Se a coluna de hora de emissão existir, processa as vendas por hora.
+            vendas_por_vendedor = df_ok.groupby('nomeVendedor')['valorTotalLiquido'].sum().sort_values(ascending=False).to_dict()
+            vendas_por_entrega = df_ok.groupby('entrega')['valorTotalLiquido'].sum().sort_values(ascending=False).to_dict()
+
+            # Agregação para o NOVO GRÁFICO: Vendas por Categoria de Produto
+            if 'nomeCategoria' in df_ok.columns:
+                vendas_por_categoria = df_ok.groupby('nomeCategoria')['valorTotalLiquido'].sum().sort_values(ascending=False).to_dict()
+
             if 'horaEmissao' in df_ok.columns:
-                df_ok['hora'] = df_ok['horaEmissao'].str[:2] # Extrai a hora (os dois primeiros caracteres).
+                df_ok['hora'] = df_ok['horaEmissao'].str[:2]
                 vendas_hora_agg = df_ok.groupby('hora')['valorTotalLiquido'].sum()
-                # Garante que todas as 24 horas do dia estejam presentes, preenchendo com 0 se não houver vendas.
                 horas_completas = [str(h).zfill(2) for h in range(24)]
                 vendas_hora_agg = vendas_hora_agg.reindex(horas_completas, fill_value=0).sort_index()
                 vendas_por_hora = vendas_hora_agg.to_dict()
+        
+        if not df_devolucoes.empty:
+            # Agregação para o NOVO GRÁFICO: Top 10 Produtos Devolvidos
+            # Usa o valor absoluto da quantidade, pois ela foi negativada anteriormente.
+            top_10_produtos_devolvidos_qtd = df_devolucoes.groupby('nome')['quantidadeProdutos'].sum().abs().nlargest(10).sort_values(ascending=True).to_dict()
 
-            # Agrupa por vendedor e por tipo de entrega.
-            vendas_por_vendedor = df_ok.groupby('nomeVendedor')['valorTotalLiquido'].sum().sort_values(ascending=False).to_dict()
-            vendas_por_entrega = df_ok.groupby('entrega')['valorTotalLiquido'].sum().sort_values(ascending=False).to_dict()
 
     # Converte os DataFrames para JSON no formato de registros (lista de dicionários).
     sales_data = json.loads(df_final.to_json(orient='records', date_format='iso'))
     all_sellers = json.loads(df_vendedores.to_json(orient='records', date_format='iso'))
 
-    # Retorna todos os dados compilados em um único objeto JSON.
+    # Retorna todos os dados compilados em um único objeto JSON, incluindo os novos.
     return jsonify(
         sales_data=sales_data, 
         all_sellers=all_sellers,
         vendas_por_pagamento=vendas_por_pagamento,
         vendas_por_hora=vendas_por_hora,
         vendas_por_vendedor=vendas_por_vendedor,
-        vendas_por_entrega=vendas_por_entrega
+        vendas_por_entrega=vendas_por_entrega,
+        vendas_por_categoria=vendas_por_categoria,
+        top_10_produtos_devolvidos_qtd=top_10_produtos_devolvidos_qtd
     )
 
 @app.route('/api/dados-graficos')

@@ -85,6 +85,7 @@
                     <th title="Lucro Bruto (R$)">Lucro Bruto (R$)</th>
                     <th title="Margem (%)">Margem (%)</th>
                     <th title="Estoque Atual">Estoque Atual</th>
+                    <th title="Última Entrada">Última Entrada</th>
                     <th title="Giro (Simplificado)">
                         Giro (Simplificado)
                         <div class="tooltip-container">
@@ -276,7 +277,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderizarTabelaProdutos(produtosDaPagina) {
         // Se não houver produtos para a página, exibe uma mensagem na tabela.
         if (produtosDaPagina.length === 0) {
-            elements.tabelaProdutosBody.innerHTML = '<tr><td colspan="8">Nenhum dado de venda encontrado para o período.</td></tr>';
+            // AJUSTE: colspan aumentado de 8 para 9 para acomodar a nova coluna.
+            elements.tabelaProdutosBody.innerHTML = '<tr><td colspan="9">Nenhum dado de venda encontrado para o período.</td></tr>';
             return;
         }
 
@@ -292,6 +294,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${formatarMoeda(p.lucro_bruto)}</td>
                     <td>${(p.margem_percentual || 0).toFixed(2)}%</td>
                     <td>${(p.quantidadeEstoque || 0).toLocaleString('pt-BR')}</td>
+                    <td>${p.ultima_entrada || '-'}</td>
                     <td>${(p.giro_estoque || 0).toFixed(2)}</td>
                 </tr>
             `;

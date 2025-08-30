@@ -234,7 +234,8 @@
 }
 
 /* Estiliza o contêiner individual de cada gráfico. */
-.grafico-container {
+/* AJUSTE: Aumentada a especificidade do seletor para garantir a sobreposição */
+.charts-grid .grafico-container {
     /* Faz o contêiner ocupar 6 das 12 colunas (metade da largura). */
     grid-column: span 6;
     /* Estilos visuais: fundo, preenchimento, bordas e sombra. */
@@ -275,7 +276,8 @@
     .charts-grid {
         grid-template-columns: 1fr;
     }
-    .grafico-container {
+    /* AJUSTE: Seletor com maior especificidade para garantir sobreposição */
+    .charts-grid .grafico-container {
         grid-column: span 1;
     }
 }

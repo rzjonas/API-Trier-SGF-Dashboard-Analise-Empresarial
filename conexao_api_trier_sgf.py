@@ -548,17 +548,14 @@ def processar_e_salvar_dados_analiticos():
         if col in df_vendas.columns: df_vendas[col] = df_vendas[col].apply(safe_json_loads)
 
     # "Explode" a tabela de vendas: cada item de uma venda se torna uma linha separada.
-    # Isso transforma a granularidade de "venda" para "item de venda".
     if 'itens' in df_vendas.columns:
         if 'condicaoPagamento' in df_vendas.columns:
-            # Extrai o nome da condição de pagamento do objeto JSON.
             df_vendas['condicaoPagamento_nome'] = df_vendas['condicaoPagamento'].apply(lambda x: x.get('nome') if isinstance(x, dict) else None)
         
         colunas_venda = [col for col in df_vendas.columns if col not in ['itens', 'condicaoPagamento']]
         df_vendas = df_vendas.explode('itens').reset_index(drop=True)
         df_itens_normalized = pd.json_normalize(df_vendas['itens'])
         
-        # Remove colunas duplicadas que podem vir do JSON aninhado.
         if 'codigoVendedor' in df_itens_normalized.columns:
             df_itens_normalized = df_itens_normalized.drop(columns=['codigoVendedor'])
             
@@ -573,14 +570,43 @@ def processar_e_salvar_dados_analiticos():
 
     df_vendedores.rename(columns={'nome': 'nomeVendedor'}, inplace=True)
     df_vendedores['codigo'] = df_vendedores['codigo'].astype(str)
-    df_produtos['codigo'] = df_produtos['codigo'].astype(str)
+    
+    # <<< INÍCIO DA CORREÇÃO >>>
+    # Prepara o DataFrame de produtos para a junção, selecionando as colunas de interesse.
+    if not df_produtos.empty:
+        # NOVO: Incluímos 'nome' e o renomeamos para 'nome_produto' para evitar conflito.
+        colunas_produtos_interesse = ['codigo', 'nome', 'nomeGrupo', 'nomeCategoria']
+        colunas_existentes = [col for col in colunas_produtos_interesse if col in df_produtos.columns]
+        df_produtos_para_merge = df_produtos[colunas_existentes].copy()
+        df_produtos_para_merge.rename(columns={'nome': 'nome_produto'}, inplace=True) # Renomeia a coluna
+        df_produtos_para_merge['codigo'] = df_produtos_para_merge['codigo'].astype(str)
+    else:
+        df_produtos_para_merge = pd.DataFrame(columns=['codigo'])
 
-    # Realiza as junções (MERGE) para enriquecer os dados de venda com nomes de vendedor e produto.
-    df_merged = pd.merge(df_vendas, df_vendedores, left_on='codigoVendedor', right_on='codigo', how='left')
+    # Realiza as junções (MERGE) para enriquecer os dados.
+    df_merged = pd.merge(df_vendas, df_vendedores[['codigo', 'nomeVendedor']], left_on='codigoVendedor', right_on='codigo', how='left')
     df_merged['nomeVendedor'] = df_merged['nomeVendedor'].fillna('Não encontrado')
-    df_final = pd.merge(df_merged, df_produtos, left_on='codigoProduto', right_on='codigo', how='left')
-    df_final['nome'] = df_final['nome'].fillna('Produto não encontrado')
-    df_final.drop(columns=['codigo_x', 'codigo_y'], errors='ignore', inplace=True) # Remove colunas de código redundantes.
+    
+    # Junta com as informações preparadas dos produtos.
+    df_final = pd.merge(df_merged, df_produtos_para_merge, left_on='codigoProduto', right_on='codigo', how='left')
+    
+    # AJUSTADO: Garante que a coluna 'nome' exista e a preenche com 'nome_produto' se estiver vazia.
+    if 'nome_produto' in df_final.columns:
+        # NOVO: Verifica se a coluna 'nome' não foi criada (caso de um lote só com devoluções)
+        if 'nome' not in df_final.columns:
+            df_final['nome'] = None  # Cria a coluna vazia para evitar o erro
+
+    df_final['nome'].fillna(df_final['nome_produto'], inplace=True)
+
+    # Preenche valores nulos para as outras colunas para garantir que elas sempre existam.
+    if 'nomeGrupo' not in df_final.columns: df_final['nomeGrupo'] = 'Não encontrado'
+    if 'nomeCategoria' not in df_final.columns: df_final['nomeCategoria'] = 'Sem Categoria'
+    df_final['nomeGrupo'].fillna('Não encontrado', inplace=True)
+    df_final['nomeCategoria'].fillna('Sem Categoria', inplace=True)
+
+    # Remove colunas de código redundantes e a coluna temporária 'nome_produto'.
+    df_final.drop(columns=['codigo_x', 'codigo_y', 'codigo', 'nome_produto'], errors='ignore', inplace=True)
+    # <<< FIM DA CORREÇÃO >>>
 
     # Garante que os valores de devolução sejam negativos para que as somas fiquem corretas.
     colunas_financeiras = ['valorTotalCusto', 'valorTotalBruto', 'valorTotalLiquido', 'quantidadeProdutos']

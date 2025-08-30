@@ -28,6 +28,14 @@
             <h3>Vendas por Tipo de Entrega (R$)</h3>
             <canvas id="vendasPorEntregaChart"></canvas>
         </div>
+        <div class="grafico-container-analise">
+            <h3>Vendas por Categoria de Produto (R$)</h3>
+            <canvas id="vendasPorCategoriaChart"></canvas>
+        </div>
+        <div class="grafico-container-analise">
+            <h3>Top 10 Produtos Devolvidos (Qtd)</h3>
+            <canvas id="topProdutosDevolvidosChart"></canvas>
+        </div>
     </div>
     <h2>NOTAS DE VENDAS E DEVOLUÇÕES</h2>
     <div class="table-wrapper" id="tabelaContainerPrincipais"></div>
@@ -96,8 +104,8 @@
      * @param {object} dados - O objeto de dados recebido da API.
      */
     function iniciarDashboard(dados) {
-        // Extrai os dados necessários do objeto principal.
-        const { sales_data, vendas_por_pagamento, vendas_por_hora, vendas_por_vendedor, vendas_por_entrega } = dados;
+        // Extrai os dados necessários do objeto principal, incluindo os novos.
+        const { sales_data, vendas_por_pagamento, vendas_por_hora, vendas_por_vendedor, vendas_por_entrega, vendas_por_categoria, top_10_produtos_devolvidos_qtd } = dados;
 
         // Verifica se a lista de dados de vendas está vazia ou não existe.
         if (!sales_data || sales_data.length === 0) {
@@ -115,7 +123,8 @@
             
             // Chama as funções para processar os dados, renderizar os gráficos e atualizar o dashboard.
             processarDados(sales_data);
-            renderizarGraficos(vendas_por_pagamento, vendas_por_hora, vendas_por_vendedor, vendas_por_entrega);
+            // Passa os novos dados para a função de renderização de gráficos.
+            renderizarGraficos(vendas_por_pagamento, vendas_por_hora, vendas_por_vendedor, vendas_por_entrega, vendas_por_categoria, top_10_produtos_devolvidos_qtd);
             atualizarDashboard(dadosAgrupados);
         }
     }
@@ -123,16 +132,12 @@
     /**
      * Renderiza os gráficos do dashboard usando Chart.js.
      * Destrói instâncias antigas de gráficos antes de criar novas para evitar problemas de memória.
-     * @param {object} dadosPagamento - Dados para o gráfico de formas de pagamento.
-     * @param {object} dadosHora - Dados para o gráfico de vendas por hora.
-     * @param {object} dadosVendedor - Dados para o gráfico de vendas por vendedor.
-     * @param {object} dadosEntrega - Dados para o gráfico de vendas por tipo de entrega.
      */
-    function renderizarGraficos(dadosPagamento, dadosHora, dadosVendedor, dadosEntrega) {
+    function renderizarGraficos(dadosPagamento, dadosHora, dadosVendedor, dadosEntrega, dadosCategoria, dadosDevolvidos) {
         const graficosContainer = document.getElementById('graficosContainerAnalise');
 
-        // Itera sobre os IDs dos canvas dos gráficos para destruir instâncias existentes.
-        ['vendasPorPagamentoChart', 'vendasPorHoraChart', 'vendasPorVendedorChart', 'vendasPorEntregaChart'].forEach(id => {
+        // Itera sobre os IDs dos canvas dos gráficos para destruir instâncias existentes, incluindo os novos.
+        ['vendasPorPagamentoChart', 'vendasPorHoraChart', 'vendasPorVendedorChart', 'vendasPorEntregaChart', 'vendasPorCategoriaChart', 'topProdutosDevolvidosChart'].forEach(id => {
             const chartInstance = Chart.getChart(id);
             if (chartInstance) chartInstance.destroy();
         });
@@ -142,9 +147,11 @@
         const hasHoraData = dadosHora && Object.values(dadosHora).some(v => v > 0);
         const hasVendedorData = dadosVendedor && Object.keys(dadosVendedor).length > 0;
         const hasEntregaData = dadosEntrega && Object.keys(dadosEntrega).length > 0;
+        const hasCategoriaData = dadosCategoria && Object.keys(dadosCategoria).length > 0;
+        const hasDevolvidosData = dadosDevolvidos && Object.keys(dadosDevolvidos).length > 0;
 
         // Se nenhum gráfico tiver dados, esconde o container de gráficos.
-        if (!hasPagamentoData && !hasHoraData && !hasVendedorData && !hasEntregaData) {
+        if (!hasPagamentoData && !hasHoraData && !hasVendedorData && !hasEntregaData && !hasCategoriaData && !hasDevolvidosData) {
             graficosContainer.style.display = 'none';
             return;
         }
@@ -154,20 +161,15 @@
 
         // Função auxiliar para gerar cores aleatórias para os gráficos.
         const getRandomColor = () => `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, 0.7)`;
+        const colors = ['#3498db', '#2ecc71', '#e74c3c', '#f1c40f', '#9b59b6', '#34495e', '#1abc9c', '#e67e22', '#7f8c8d', '#2980b9'];
 
         // Renderiza o gráfico de Vendas por Vendedor (tipo pizza).
         if (hasVendedorData) {
             const ctx = document.getElementById('vendasPorVendedorChart').getContext('2d');
             new Chart(ctx, {
                 type: 'pie',
-                data: {
-                    labels: Object.keys(dadosVendedor),
-                    datasets: [{
-                        data: Object.values(dadosVendedor),
-                        backgroundColor: Object.keys(dadosVendedor).map(() => getRandomColor()),
-                    }]
-                },
-                options: { responsive: true, maintainAspectRatio: false }
+                data: { labels: Object.keys(dadosVendedor), datasets: [{ data: Object.values(dadosVendedor), backgroundColor: colors }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
             });
         }
         
@@ -176,23 +178,8 @@
             const ctx = document.getElementById('vendasPorHoraChart').getContext('2d');
             new Chart(ctx, {
                 type: 'bar',
-                data: {
-                    labels: Object.keys(dadosHora).map(h => `${h}h`),
-                    datasets: [{
-                        label: 'Valor de Vendas (R$)',
-                        data: Object.values(dadosHora),
-                        backgroundColor: '#3498db',
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: { y: { beginAtZero: true } },
-                    interaction: {
-                        mode: 'index',
-                        intersect: false,
-                    }
-                }
+                data: { labels: Object.keys(dadosHora).map(h => `${h}h`), datasets: [{ label: 'Valor de Vendas (R$)', data: Object.values(dadosHora), backgroundColor: '#3498db', }] },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, interaction: { mode: 'index', intersect: false, } }
             });
         }
 
@@ -201,14 +188,8 @@
             const ctx = document.getElementById('vendasPorPagamentoChart').getContext('2d');
             new Chart(ctx, {
                 type: 'doughnut',
-                data: {
-                    labels: Object.keys(dadosPagamento),
-                    datasets: [{
-                        data: Object.values(dadosPagamento),
-                        backgroundColor: Object.keys(dadosPagamento).map(() => getRandomColor()),
-                    }]
-                },
-                options: { responsive: true, maintainAspectRatio: false }
+                data: { labels: Object.keys(dadosPagamento), datasets: [{ data: Object.values(dadosPagamento), backgroundColor: colors.slice().reverse() }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
             });
         }
 
@@ -217,14 +198,48 @@
             const ctx = document.getElementById('vendasPorEntregaChart').getContext('2d');
             new Chart(ctx, {
                 type: 'pie',
+                data: { labels: Object.keys(dadosEntrega), datasets: [{ data: Object.values(dadosEntrega), backgroundColor: ['#2ecc71', '#e74c3c', '#f1c40f'], }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+            });
+        }
+
+        // NOVO GRÁFICO: Renderiza o gráfico de Vendas por Categoria (tipo pizza).
+        if (hasCategoriaData) {
+            const ctx = document.getElementById('vendasPorCategoriaChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'pie',
                 data: {
-                    labels: Object.keys(dadosEntrega),
+                    labels: Object.keys(dadosCategoria),
                     datasets: [{
-                        data: Object.values(dadosEntrega),
-                        backgroundColor: ['#2ecc71', '#e74c3c', '#f1c40f'],
+                        label: 'Vendas por Categoria',
+                        data: Object.values(dadosCategoria),
+                        backgroundColor: colors.slice(0, Object.keys(dadosCategoria).length)
                     }]
                 },
-                options: { responsive: true, maintainAspectRatio: false }
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+            });
+        }
+
+        // NOVO GRÁFICO: Renderiza o gráfico de Top 10 Produtos Devolvidos (barras horizontais).
+        if (hasDevolvidosData) {
+            const ctx = document.getElementById('topProdutosDevolvidosChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(dadosDevolvidos),
+                    datasets: [{
+                        label: 'Quantidade Devolvida',
+                        data: Object.values(dadosDevolvidos),
+                        backgroundColor: '#e74c3c',
+                    }]
+                },
+                options: {
+                    indexAxis: 'y', // Torna o gráfico horizontal
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                }
             });
         }
     }
