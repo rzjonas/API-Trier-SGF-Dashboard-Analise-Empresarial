@@ -196,3 +196,4 @@ Análise Empresarial. O sistema foi desenhado para ser resiliente: se o
 orquestrador falhar, ele retoma do último checkpoint salvo em estados.
 O frontend é desacoplado e lê apenas o banco SQLite, garantindo
 performance na navegação.
+ 
