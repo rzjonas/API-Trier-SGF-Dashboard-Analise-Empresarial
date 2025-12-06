@@ -1,4 +1,4 @@
-# Painel de Análise Empresarial -- Documentação Técnica de Implantação
+# Painel de Análise Empresarial
 
 ## 1. Visão Geral
 
@@ -128,6 +128,7 @@ os.makedirs(STATE_DIR, exist_ok=True)
 ## 6. Execução Manual
 
 O sistema requer dois processos rodando simultaneamente.
+
 A. Orquestrador de Dados (ETL):
 
 Responsável por baixar e atualizar os dados no banco SQLite.
