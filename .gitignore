@@ -1,0 +1,13 @@
+## Token envio github: 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
+
+config_conexao.py
+
+data/
+
+endpoints/
+
+.venv/
+
+__pycache__/
+
+log.txt

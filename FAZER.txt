@@ -1,0 +1,120 @@
+
+
+1. Página de Análise de Vendas
+O foco aqui é aprofundar a análise de cancelamentos e adicionar mais contexto de produto à visão de vendas.
+
+Novos Gráficos
+O que é: Um gráfico de "Top 10 Produtos Devolvidos" (por quantidade ou valor). Isso ajuda a identificar produtos problemáticos, com defeito, ou que geram insatisfação.
+
+
+Dados Necessários: Endpoint venda/cancelamento/obter-todos-v1  (filtrando por 
+
+tipoCancelamento: "D") para obter os itens e 
+
+produto/obter-todos-v1  para obter o nome do produto.
+
+O que é: Um gráfico de "Vendas por Categoria de Produto". Enquanto a página de 
+
+Desempenho mostra por Grupo, esta poderia mostrar por nomeCategoria (ex: "ALTO GIRO", "MÉDIO GIRO"), que parece ser uma classificação de negócio diferente. 
+
+Dados Necessários: Cruzar as vendas do endpoint venda/obter-alterados-v1 com o campo 
+
+nomeCategoria do endpoint 
+
+produto/obter-alterados-v1.
+
+
+
+
+2. Página de Produtos e Estoque
+Esta página pode ser muito mais poderosa ao analisar atributos dos produtos que já existem na API, como marcas e tags, e ao fornecer insights mais proativos.
+
+Novos Gráficos
+O que é: Um novo gráfico de "Top 10 Laboratórios por Receita". Isso ajuda a entender quais marcas são mais estratégicas para o negócio.
+
+Dados Necessários: Cruzar os dados de venda/obter-alterados-v1 com o campo nomeLaboratorio do endpoint produto/obter-alterados-v1.
+
+Melhorias na Tabela
+O que é: Ajustar a coluna "Última Entrada" na tabela de análise de produtos vendidos para mostrar corretamente.
+
+Dados Necessários: Endpoint estoque/obter-alterados-v1 , que fornece o campo dataUltimaEntrada por produto.
+
+Novo Insight Proativo
+O que é: Criar um gráfico de alerta chamado "Sugestão de Compra". Ele mostraria os produtos que estão simultaneamente no "Top 10 de Vendas" e nos cards de "Estoque Crítico" ou "Baixo". Isso transforma o dashboard de reativo para proativo.
+
+Dados Necessários: Apenas cruzar os dados que já são calculados para os gráficos de Top 10 e os cards de Níveis de Estoque nesta mesma página.
+
+
+
+
+
+3. Página de Financeiro e Compras
+Esta página pode evoluir de uma simples lista para uma ferramenta de análise de fornecedores e de variação de custos.
+
+Novos Gráficos
+O que é: Um gráfico de "Evolução de Compras (R$)". Um gráfico de linha que mostra o valor total comprado por dia, permitindo analisar o fluxo de caixa de saída e a sazonalidade das compras.
+
+Dados Necessários: Utilizar a dataEntrada e 
+
+valorTotalNota do endpoint 
+
+compra/obter-alterados-v1.
+
+O que é: Um gráfico de "Top 10 Fornecedores por Valor Comprado (R$)". Essencial para identificar os fornecedores mais importantes e para futuras negociações.
+
+Dados Necessários: Agregar os dados do endpoint compra/obter-alterados-v1 pelo 
+
+codigoFornecedor e buscar o 
+
+nomeFantasia no endpoint 
+
+fornecedor/obter-todos-v1.
+
+Melhorias na Tabela
+
+O que é: Adicionar a coluna "Variação de Custo (%)". Para cada item da nota, comparar seu 
+
+valorCusto com o 
+
+valorCustoMedio  atual do produto (disponível no endpoint de produto/estoque). Isso destacaria aumentos ou reduções de preço do fornecedor.
+
+Dados Necessários: Cruzar o valorCusto do item em compra/obter-alterados-v1 com o 
+
+valorCustoMedio de estoque/obter-alterados-v1.
+
+
+
+
+4. Página de Desempenho
+O foco aqui é enriquecer a visão macro com a dimensão da lucratividade e o impacto das devoluções, que hoje não são tão evidentes.
+
+Novos Cards (KPIs)
+O que é: Adicionar dois novos KPIs ao lado do Ticket Médio e Itens por Transação.
+
+Lucro Bruto Total (R$): A soma do lucro de todas as vendas (valorTotalLiquido - valorTotalCusto).
+
+Margem de Lucro Média (%): O percentual médio de lucro sobre a receita.
+
+
+Dados Necessários: O endpoint venda/obter-alterados-v1 já fornece 
+
+valorTotalLiquido e valorTotalCusto  para cada item, que são agregados no backend.
+
+
+O que é: Adicionar um card para o impacto das devoluções.
+
+Total Devolvido (R$): Soma do valorTotalLiquido de todos os itens de notas de devolução.
+
+% Receita Devolvida: O valor total devolvido como um percentual da receita bruta.
+
+
+Dados Necessários: Endpoint venda/cancelamento/obter-todos-v1 , filtrando por 
+
+tipoCancelamento: "D" e somando o valorTotalLiquido  dos itens.
+
+
+Melhorias nos Gráficos
+O que é: No gráfico "Evolução da Receita", adicionar a opção (checkbox) de sobrepor uma segunda linha representando a "Evolução do Lucro Bruto" no mesmo gráfico. Isso permite comparar se picos de venda necessariamente significam picos de lucro.
+
+Dados Necessários: Mesmos dados já utilizados, apenas aplicando o cálculo de lucro (líquido - custo) por dia.
+

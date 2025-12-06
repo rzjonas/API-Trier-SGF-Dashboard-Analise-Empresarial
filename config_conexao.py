@@ -24,10 +24,10 @@ from datetime import datetime # Biblioteca para trabalhar com datas e horas (atu
 
 # Token de autenticação Bearer para acessar a API da Trier SGF.
 # Este token autoriza as requisições feitas pela aplicação.
-API_AUTH_TOKEN = "eyJhbGciOiJIUzI1NiJ9.eyJjb2RfZmlsaWFsIjoiMSIsInNjb3BlIjpbImRyb2dhcmlhIl0sInRva2VuX2ludGVncmFjYW8iOiJ0cnVlIiwiY29kX2Zhcm1hY2lhIjoiMTI5NTgiLCJleHAiOjQxMDI0NTU2MDAsImlhdCI6MTc1MzM4NTM2NywianRpIjoiZjgzZjQ5ZTQtMWMzOS00ZjJkLTg1MWMtNWZhMzJiYmFjZDU2IiwiY29kX3VzdWFyaW8iOiI1MSIsImF1dGhvcml0aWVzIjpbIkFQSV9JTlRFR1JBQ0FPIl19.B8lUvyhFRHStjS922eCifLvY2p7lq8gnmKrct_DEvCg"
+API_AUTH_TOKEN = "eyJhbGciOiJIUzI1NiJ9.eyJjb2RfZmlsaWFsIjoiMzAyIiwic2NvcGUiOlsiZHJvZ2FyaWEiXSwidG9rZW5faW50ZWdyYWNhbyI6InRydWUiLCJjb2RfZmFybWFjaWEiOiIxNjIzNyIsImV4cCI6NDEwMjQ1NTYwMCwiaWF0IjoxNzI2ODU3NzQwLCJqdGkiOiI4OTU0NzM5MC0zM2NhLTRlZmQtYTk5Ny02NGRjOThiYWI2YmUiLCJjb2RfdXN1YXJpbyI6IjU2MTg1IiwiYXV0aG9yaXRpZXMiOlsiQVBJX0lOVEVHUkFDQU8iXX0.5KdNsv4GVwpjkG2e_C8MKrGoOnQmiAtqTa32rS_J_F0"
 
 # --- Tokens para teste, não excluir ----
-# Esta seção armazena tokens alternativos usados pela equipe de desenvolvimento
+# Esta seção armazena tokens alternativos
 # para testar a aplicação com diferentes lojas ou cenários, sem alterar o token principal.
 ## Token cod 16237: "eyJhbGciOiJIUzI1NiJ9.eyJjb2RfZmlsaWFsIjoiMzAyIiwic2NvcGUiOlsiZHJvZ2FyaWEiXSwidG9rZW5faW50ZWdyYWNhbyI6InRydWUiLCJjb2RfZmFybWFjaWEiOiIxNjIzNyIsImV4cCI6NDEwMjQ1NTYwMCwiaWF0IjoxNzI2ODU3NzQwLCJqdGkiOiI4OTU0NzM5MC0zM2NhLTRlZmQtYTk5Ny02NGRjOThiYWI2YmUiLCJjb2RfdXN1YXJpbyI6IjU2MTg1IiwiYXV0aG9yaXRpZXMiOlsiQVBJX0lOVEVHUkFDQU8iXX0.5KdNsv4GVwpjkG2e_C8MKrGoOnQmiAtqTa32rS_J_F0"
 ## Token Max cod 12958: "eyJhbGciOiJIUzI1NiJ9.eyJjb2RfZmlsaWFsIjoiMSIsInNjb3BlIjpbImRyb2dhcmlhIl0sInRva2VuX2ludGVncmFjYW8iOiJ0cnVlIiwiY29kX2Zhcm1hY2lhIjoiMTI5NTgiLCJleHAiOjQxMDI0NTU2MDAsImlhdCI6MTc1MzM4NTM2NywianRpIjoiZjgzZjQ5ZTQtMWMzOS00ZjJkLTg1MWMtNWZhMzJiYmFjZDU2IiwiY29kX3VzdWFyaW8iOiI1MSIsImF1dGhvcml0aWVzIjpbIkFQSV9JTlRFR1JBQ0FPIl19.B8lUvyhFRHStjS922eCifLvY2p7lq8gnmKrct_DEvCg"
@@ -88,7 +88,7 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 # Data de início para a carga histórica de vendas. O orquestrador buscará todas as
 # vendas a partir desta data na primeira execução.
-HISTORICAL_START_DATE = "2025-01-01"
+HISTORICAL_START_DATE = "2025-10-01"
 
 # Durante a carga histórica, as vendas são buscadas em lotes de N dias.
 # Este valor define o tamanho de cada lote (período). Um valor menor (como 10)

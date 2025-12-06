@@ -344,7 +344,16 @@ def api_desempenho_data():
     top_5_vendedores = df_ok.groupby('nomeVendedor')['valorTotalLiquido'].sum().nlargest(5).sort_values(ascending=True)
 
     # PREPARAÇÃO DOS DADOS PARA O MAPA DE CALOR
-    df_ok['dia_semana'] = df_ok['dataEmissao_dt'].dt.day_name('pt_BR').str.capitalize()
+    dias_semana_map = {
+    0: 'Segunda-feira',
+    1: 'Terça-feira',
+    2: 'Quarta-feira',
+    3: 'Quinta-feira',
+    4: 'Sexta-feira',
+    5: 'Sábado',
+    6: 'Domingo'
+    }
+    df_ok['dia_semana'] = df_ok['dataEmissao_dt'].dt.dayofweek.map(dias_semana_map)
     df_ok['hora'] = pd.to_numeric(df_ok['horaEmissao'].str[:2], errors='coerce').fillna(0).astype(int)
     mapa_calor = df_ok.groupby(['dia_semana', 'hora'])['valorTotalLiquido'].sum().reset_index()
     # Ordena os dias da semana corretamente.
