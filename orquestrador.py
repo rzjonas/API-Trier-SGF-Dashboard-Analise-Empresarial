@@ -269,3 +269,4 @@ def main():
 # Garante que a função 'main' seja executada apenas quando o script é chamado diretamente.
 if __name__ == "__main__":
     main()
+    
