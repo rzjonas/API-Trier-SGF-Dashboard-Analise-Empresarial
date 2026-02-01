@@ -298,32 +298,25 @@ def _buscar_dados_paginados(url: str, params: dict = None, headers: dict = None)
 
 def realizar_carga_historica_vendas():
     """
-    Executa a carga completa do histórico de vendas desde a data definida em
-    `HISTORICAL_START_DATE`. A função processa os dados em lotes (períodos de
-    `SALES_FILE_DAYS_INTERVAL` dias) e utiliza o sistema de checkpoint para
-    ser retomada em caso de falha.
+    Executa a carga completa do histórico de vendas.
     """
     NOME_TAREFA = 'carga_historica_vendas'
     NOME_TABELA = 'vendas'
     logging.info(f"\nIniciando carga completa das VENDAS...")
     
-    # Carrega o último estado salvo para saber de onde continuar.
     estado = _carregar_estado(NOME_TAREFA)
     ultima_data_concluida_str = estado.get('ultima_data_concluida')
     
-    # Define as datas de início e fim do processo.
     data_inicio_historico = pd.to_datetime(cfg.HISTORICAL_START_DATE)
     data_inicio_loop = data_inicio_historico
     if ultima_data_concluida_str:
-        # Se há um checkpoint, começa do dia seguinte ao último concluído.
         data_inicio_loop = datetime.strptime(ultima_data_concluida_str, '%Y-%m-%d') + timedelta(days=cfg.SALES_FILE_DAYS_INTERVAL)
     
     data_fim_loop = datetime.now()
     data_atual_periodo = data_inicio_loop
     
-    df_existente = _ler_do_db(NOME_TABELA) # Carrega os dados já salvos no banco.
+    df_existente = _ler_do_db(NOME_TABELA)
 
-    # Loop que itera sobre os períodos de tempo, do início ao fim.
     while data_atual_periodo <= data_fim_loop:
         data_fim_periodo = data_atual_periodo + timedelta(days=cfg.SALES_FILE_DAYS_INTERVAL - 1)
         if data_fim_periodo > data_fim_loop: data_fim_periodo = data_fim_loop
@@ -332,80 +325,87 @@ def realizar_carga_historica_vendas():
         data_fim_str = data_fim_periodo.strftime('%Y-%m-%d')
         logging.info(f"\nProcessando período de {data_inicio_str} a {data_fim_str}")
         
-        # Parâmetros para buscar vendas e cancelamentos no período.
         params_periodo = {"dataInicial": data_inicio_str, "dataFinal": data_fim_str}
         params_cancel_periodo = {"dataEmissaoInicial": data_inicio_str, "dataEmissaoFinal": data_fim_str}
         
-        # Busca os dados na API.
         dados_vendas = _buscar_dados_paginados(cfg.VENDAS_ALT_ENDPOINT, params=params_periodo)
         dados_cancelados = _buscar_dados_paginados(cfg.VENDAS_CANCEL_ENDPOINT, params=params_cancel_periodo)
         
         if dados_vendas is None:
             logging.error("Falha ao buscar vendas para o período. A tarefa será retomada na próxima execução.")
-            return # Aborta a execução para tentar novamente mais tarde.
+            return
             
         df_vendas_periodo = pd.DataFrame(dados_vendas)
-        if not df_vendas_periodo.empty: df_vendas_periodo['status'] = df_vendas_periodo.get('status', pd.Series(dtype='str')).fillna('OK')
+        if not df_vendas_periodo.empty: 
+            df_vendas_periodo['status'] = df_vendas_periodo.get('status', pd.Series(dtype='str')).fillna('OK')
+            # Garante que a coluna numeroNotaOrigem exista mesmo em vendas normais (vazia)
+            if 'numeroNotaOrigem' not in df_vendas_periodo.columns:
+                df_vendas_periodo['numeroNotaOrigem'] = None
         
-        # Processa os dados de cancelamento, separando devoluções de exclusões.
+        # Processa os dados de cancelamento/devolução
         if dados_cancelados:
             df_cancelados = pd.DataFrame(dados_cancelados)
             if not df_cancelados.empty and 'tipoCancelamento' in df_cancelados.columns:
-                # Trata devoluções ('D'): inverte os sinais dos valores financeiros.
+                
+                # --- TRATAMENTO DE DEVOLUÇÕES ('D') ---
                 df_devolvidas = df_cancelados[df_cancelados['tipoCancelamento'] == 'D'].copy()
                 if not df_devolvidas.empty:
+                    # Inverte sinais APENAS para devoluções (para abater do faturamento)
                     cols_inverter = ['valorTotalCusto', 'valorTotalBruto', 'valorTotalLiquido', 'valorTotal', 'quantidadeProdutos', 'valorDesconto']
                     for col in cols_inverter:
-                        if col in df_devolvidas.columns: df_devolvidas[col] = pd.to_numeric(df_devolvidas[col], errors='coerce').fillna(0) * -1
+                        if col in df_devolvidas.columns: 
+                            df_devolvidas[col] = pd.to_numeric(df_devolvidas[col], errors='coerce').fillna(0) * -1
+                    
                     df_devolvidas['status'] = 'DEVOLUÇÃO'
+                    # Garante que numeroNotaOrigem seja preservado
+                    if 'numeroNotaOrigem' not in df_devolvidas.columns:
+                        df_devolvidas['numeroNotaOrigem'] = None
+                        
                     df_vendas_periodo = _concatenar_dfs_com_seguranca(df_vendas_periodo, df_devolvidas)
 
-                # Trata exclusões ('E'): apenas marca o status.
+                # --- TRATAMENTO DE EXCLUSÕES ('E') ---
                 df_excluidas = df_cancelados[df_cancelados['tipoCancelamento'] == 'E'].copy()
                 if not df_excluidas.empty:
+                    # NÃO INVERTE SINAIS. Mantém positivo para mostrar o valor da nota que foi excluída.
+                    # O status 'Excluída' será usado no front-end para filtrar fora dos totais.
                     df_excluidas['status'] = 'Excluída'
+                    if 'numeroNotaOrigem' not in df_excluidas.columns:
+                        df_excluidas['numeroNotaOrigem'] = None
+
                     df_vendas_periodo = _concatenar_dfs_com_seguranca(df_vendas_periodo, df_excluidas)
                 
-                # Garante que, se uma nota foi alterada e depois cancelada, a versão do cancelamento prevaleça.
                 if not df_vendas_periodo.empty:
+                    # Prevalência: Se existe o mesmo ID, a última versão (cancelada/devolvida) substitui a venda original OK
                     df_vendas_periodo.drop_duplicates(subset=['numeroNota'], keep='last', inplace=True)
                     
         if not df_vendas_periodo.empty:
             try:
-                # Junta os dados novos com os já existentes e remove duplicatas.
                 df_final = pd.concat([df_existente, df_vendas_periodo]).drop_duplicates(subset=['numeroNota'], keep='last')
                 _escrever_para_db(df_final, NOME_TABELA, if_exists='replace')
-                df_existente = df_final.copy() # Atualiza o DataFrame em memória para a próxima iteração.
+                df_existente = df_final.copy()
             except Exception as e:
                 logging.error(f"Falha ao salvar o período no banco de dados. Erro: {e}", exc_info=True)
                 return
         else:
             logging.info("Nenhuma venda nova para salvar neste período.")
             
-        # Salva o progresso no arquivo de checkpoint.
         _salvar_estado(NOME_TAREFA, {'ultima_data_concluida': data_atual_periodo.strftime('%Y-%m-%d')})
-        # Avança para o próximo período.
         data_atual_periodo += timedelta(days=cfg.SALES_FILE_DAYS_INTERVAL)
         
     logging.info(f"Tarefa '{NOME_TAREFA}' concluída com sucesso.")
-    _limpar_estado(NOME_TAREFA) # Remove o checkpoint ao final.
+    _limpar_estado(NOME_TAREFA)
 
 
 def atualizar_vendas_recentes():
     """
-    Busca apenas as vendas do dia corrente que foram criadas, alteradas ou canceladas.
-    Esta função é mais leve e rápida que a carga histórica, ideal para atualizações frequentes.
+    Busca apenas as vendas do dia corrente.
     """
     NOME_TABELA = 'vendas'
     logging.info("\nIniciando atualização de vendas recentes...")
     
-    # Carrega todos os dados de vendas existentes.
     df_existente = _ler_do_db(NOME_TABELA)
-    logging.info(f"Encontrados {len(df_existente)} registros existentes na tabela '{NOME_TABELA}'.")
-    
     hoje_str = datetime.now().strftime('%Y-%m-%d')
 
-    # Busca vendas e cancelamentos apenas para a data de hoje.
     params_alt = {"dataInicial": hoje_str, "dataFinal": hoje_str}
     dados_alterados = _buscar_dados_paginados(cfg.VENDAS_ALT_ENDPOINT, params=params_alt)
     df_alterados = pd.DataFrame(dados_alterados) if dados_alterados else pd.DataFrame()
@@ -418,8 +418,6 @@ def atualizar_vendas_recentes():
         logging.info("Nenhuma venda nova, alterada ou cancelada para processar.")
         return
         
-    # Lógica de atualização: remove as versões antigas das notas que foram alteradas/canceladas
-    # e depois adiciona as novas versões.
     df_intermediario = df_existente.copy()
     ids_para_remover = set()
     if not df_alterados.empty:
@@ -430,32 +428,31 @@ def atualizar_vendas_recentes():
     if ids_para_remover:
         df_intermediario = df_intermediario[~df_intermediario['numeroNota'].isin(ids_para_remover)]
 
-    # Processa os novos dados (alterados e cancelados).
     df_novos_e_atualizados = pd.DataFrame()
 
     if not df_alterados.empty:
         df_alterados['status'] = df_alterados.get('status', pd.Series(dtype='str')).fillna('OK')
+        if 'numeroNotaOrigem' not in df_alterados.columns: df_alterados['numeroNotaOrigem'] = None
         df_novos_e_atualizados = _concatenar_dfs_com_seguranca(df_novos_e_atualizados, df_alterados)
-        logging.info(f"{len(df_alterados)} vendas novas/alteradas encontradas.")
 
     if not df_cancelados.empty:
-        logging.info(f"{len(df_cancelados)} registros de cancelamento/devolução encontrados.")
-        if 'tipoCancelamento' in df_cancelados.columns:
-            # Trata devoluções.
-            df_devolvidas = df_cancelados[df_cancelados['tipoCancelamento'] == 'D'].copy()
-            if not df_devolvidas.empty:
-                cols_inverter = ['valorTotalCusto', 'valorTotalBruto', 'valorTotalLiquido', 'valorTotal', 'quantidadeProdutos', 'valorDesconto']
-                for col in cols_inverter:
-                    if col in df_devolvidas.columns: df_devolvidas[col] = pd.to_numeric(df_devolvidas[col], errors='coerce').fillna(0) * -1
-                df_devolvidas['status'] = 'DEVOLUÇÃO'
-                df_novos_e_atualizados = _concatenar_dfs_com_seguranca(df_novos_e_atualizados, df_devolvidas)
-            # Trata exclusões.
-            df_excluidas = df_cancelados[df_cancelados['tipoCancelamento'] == 'E'].copy()
-            if not df_excluidas.empty:
-                df_excluidas['status'] = 'Excluída'
-                df_novos_e_atualizados = _concatenar_dfs_com_seguranca(df_novos_e_atualizados, df_excluidas)
+        # --- TRATAMENTO DE DEVOLUÇÕES ---
+        df_devolvidas = df_cancelados[df_cancelados['tipoCancelamento'] == 'D'].copy()
+        if not df_devolvidas.empty:
+            cols_inverter = ['valorTotalCusto', 'valorTotalBruto', 'valorTotalLiquido', 'valorTotal', 'quantidadeProdutos', 'valorDesconto']
+            for col in cols_inverter:
+                if col in df_devolvidas.columns: df_devolvidas[col] = pd.to_numeric(df_devolvidas[col], errors='coerce').fillna(0) * -1
+            df_devolvidas['status'] = 'DEVOLUÇÃO'
+            if 'numeroNotaOrigem' not in df_devolvidas.columns: df_devolvidas['numeroNotaOrigem'] = None
+            df_novos_e_atualizados = _concatenar_dfs_com_seguranca(df_novos_e_atualizados, df_devolvidas)
+            
+        # --- TRATAMENTO DE EXCLUSÕES ---
+        df_excluidas = df_cancelados[df_cancelados['tipoCancelamento'] == 'E'].copy()
+        if not df_excluidas.empty:
+            df_excluidas['status'] = 'Excluída'
+            if 'numeroNotaOrigem' not in df_excluidas.columns: df_excluidas['numeroNotaOrigem'] = None
+            df_novos_e_atualizados = _concatenar_dfs_com_seguranca(df_novos_e_atualizados, df_excluidas)
 
-    # Junta o DataFrame original (sem as notas alteradas) com as novas versões.
     df_final = _concatenar_dfs_com_seguranca(df_intermediario, df_novos_e_atualizados)
     df_final.drop_duplicates(subset=['numeroNota'], keep='last', inplace=True)
     _escrever_para_db(df_final, NOME_TABELA, if_exists='replace')
@@ -511,48 +508,45 @@ def sincronizar_vendedores():
 
 def processar_e_salvar_dados_analiticos():
     """
-    Esta é a etapa de "Transformação" do ETL. Ela lê as tabelas de dados brutos
-    ('vendas', 'vendedores', 'produtos'), realiza junções (joins), limpezas e
-    cálculos para criar uma única tabela enriquecida ('vendas_processadas'),
-    otimizada para as consultas do dashboard.
+    Processa os dados brutos e salva na tabela 'vendas_processadas'.
     """
     logging.info("Iniciando o reprocessamento dos dados para análise...")
     conn_str = _get_db_connection_string()
     
     try:
-        # Carrega as tabelas de dados brutos.
         df_vendas = pd.read_sql_table('vendas', conn_str)
         df_vendedores = pd.read_sql_table('vendedores', conn_str)
         df_produtos = pd.read_sql_table('produtos', conn_str)
     except ValueError as e:
-        logging.warning(f"Uma ou mais tabelas brutas não existem. Abortando processamento analítico. Erro: {e}")
+        logging.warning(f"Tabelas brutas incompletas: {e}")
         return
     except Exception as e:
-        logging.error(f"Erro crítico ao ler tabelas brutas: {e}", exc_info=True)
+        logging.error(f"Erro crítico: {e}", exc_info=True)
         return
 
     if df_vendas.empty:
-        logging.info("Tabela de vendas está vazia. Nada a processar.")
         _escrever_para_db(pd.DataFrame(), 'vendas_processadas', if_exists='replace')
         return
 
-    # Função para desserializar colunas JSON de volta para objetos Python.
     def safe_json_loads(s):
         if isinstance(s, str):
             try: return json.loads(s)
             except (json.JSONDecodeError, TypeError): return None
         return s
 
-    # Aplica a desserialização nas colunas que contêm JSON.
     for col in ['itens', 'condicaoPagamento']:
         if col in df_vendas.columns: df_vendas[col] = df_vendas[col].apply(safe_json_loads)
 
-    # "Explode" a tabela de vendas: cada item de uma venda se torna uma linha separada.
+    # Explode a tabela de vendas
     if 'itens' in df_vendas.columns:
         if 'condicaoPagamento' in df_vendas.columns:
             df_vendas['condicaoPagamento_nome'] = df_vendas['condicaoPagamento'].apply(lambda x: x.get('nome') if isinstance(x, dict) else None)
         
-        colunas_venda = [col for col in df_vendas.columns if col not in ['itens', 'condicaoPagamento']]
+        # Garante que numeroNotaOrigem esteja na lista de colunas a serem preservadas
+        cols_preservar = ['numeroNota', 'dataEmissao', 'horaEmissao', 'codigoVendedor', 'codigoCliente', 'entrega', 'status', 'condicaoPagamento_nome', 'numeroNotaFiscal', 'numeroNotaOrigem']
+        # Filtra apenas as que existem no DF
+        colunas_venda = [col for col in cols_preservar if col in df_vendas.columns]
+        
         df_vendas = df_vendas.explode('itens').reset_index(drop=True)
         df_itens_normalized = pd.json_normalize(df_vendas['itens'])
         
@@ -561,7 +555,6 @@ def processar_e_salvar_dados_analiticos():
             
         df_vendas = pd.concat([df_vendas[colunas_venda].reset_index(drop=True), df_itens_normalized.reset_index(drop=True)], axis=1)
 
-    # Padroniza os tipos de dados para garantir a consistência nas junções.
     df_vendas['codigoVendedor'] = df_vendas['codigoVendedor'].astype(str)
     df_vendas['codigoProduto'] = df_vendas.get('codigoProduto', pd.Series(dtype='str')).astype(str)
     df_vendas['entrega'] = df_vendas.get('entrega', pd.Series(dtype=bool)).map({True: 'SIM', False: 'NÃO'}).fillna('NÃO')
@@ -571,54 +564,43 @@ def processar_e_salvar_dados_analiticos():
     df_vendedores.rename(columns={'nome': 'nomeVendedor'}, inplace=True)
     df_vendedores['codigo'] = df_vendedores['codigo'].astype(str)
     
-    # <<< INÍCIO DA CORREÇÃO >>>
-    # Prepara o DataFrame de produtos para a junção, selecionando as colunas de interesse.
     if not df_produtos.empty:
-        # NOVO: Incluímos 'nome' e o renomeamos para 'nome_produto' para evitar conflito.
         colunas_produtos_interesse = ['codigo', 'nome', 'nomeGrupo', 'nomeCategoria']
         colunas_existentes = [col for col in colunas_produtos_interesse if col in df_produtos.columns]
         df_produtos_para_merge = df_produtos[colunas_existentes].copy()
-        df_produtos_para_merge.rename(columns={'nome': 'nome_produto'}, inplace=True) # Renomeia a coluna
+        df_produtos_para_merge.rename(columns={'nome': 'nome_produto'}, inplace=True)
         df_produtos_para_merge['codigo'] = df_produtos_para_merge['codigo'].astype(str)
     else:
         df_produtos_para_merge = pd.DataFrame(columns=['codigo'])
 
-    # Realiza as junções (MERGE) para enriquecer os dados.
     df_merged = pd.merge(df_vendas, df_vendedores[['codigo', 'nomeVendedor']], left_on='codigoVendedor', right_on='codigo', how='left')
     df_merged['nomeVendedor'] = df_merged['nomeVendedor'].fillna('Não encontrado')
     
-    # Junta com as informações preparadas dos produtos.
     df_final = pd.merge(df_merged, df_produtos_para_merge, left_on='codigoProduto', right_on='codigo', how='left')
     
-    # AJUSTADO: Garante que a coluna 'nome' exista e a preenche com 'nome_produto' se estiver vazia.
     if 'nome_produto' in df_final.columns:
-        # NOVO: Verifica se a coluna 'nome' não foi criada (caso de um lote só com devoluções)
-        if 'nome' not in df_final.columns:
-            df_final['nome'] = None  # Cria a coluna vazia para evitar o erro
-
+        if 'nome' not in df_final.columns: df_final['nome'] = None 
     df_final['nome'].fillna(df_final['nome_produto'], inplace=True)
 
-    # Preenche valores nulos para as outras colunas para garantir que elas sempre existam.
     if 'nomeGrupo' not in df_final.columns: df_final['nomeGrupo'] = 'Não encontrado'
     if 'nomeCategoria' not in df_final.columns: df_final['nomeCategoria'] = 'Sem Categoria'
     df_final['nomeGrupo'].fillna('Não encontrado', inplace=True)
     df_final['nomeCategoria'].fillna('Sem Categoria', inplace=True)
 
-    # Remove colunas de código redundantes e a coluna temporária 'nome_produto'.
     df_final.drop(columns=['codigo_x', 'codigo_y', 'codigo', 'nome_produto'], errors='ignore', inplace=True)
-    # <<< FIM DA CORREÇÃO >>>
 
-    # Garante que os valores de devolução sejam negativos para que as somas fiquem corretas.
+    # Reforço da lógica de valores negativos para DEVOLUÇÃO
+    # Para EXCLUÍDA, mantemos o valor positivo (não invertemos aqui), pois o filtro do frontend vai ignorá-la nos totais
     colunas_financeiras = ['valorTotalCusto', 'valorTotalBruto', 'valorTotalLiquido', 'quantidadeProdutos']
     for col in colunas_financeiras:
         if col in df_final.columns:
             df_final[col] = pd.to_numeric(df_final[col], errors='coerce').fillna(0)
             devolucoes = (df_final['status_venda'] == 'DEVOLUÇÃO')
+            # Garante que seja negativo
             df_final.loc[devolucoes, col] = -df_final.loc[devolucoes, col].abs()
 
-    # Salva a tabela processada, substituindo a versão anterior.
     _escrever_para_db(df_final, 'vendas_processadas', if_exists='replace')
-    logging.info(f"Sucesso! Tabela 'vendas_processadas' foi atualizada com {len(df_final)} linhas.")
+    logging.info(f"Sucesso! Tabela 'vendas_processadas' atualizada.")
 
 def sincronizar_estoque():
     """

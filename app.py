@@ -75,19 +75,22 @@ def carregar_e_processar_dados():
         logging.error(f"Erro crítico ao ler tabelas de vendas: {e}", exc_info=True)
         return pd.DataFrame(), pd.DataFrame()
 
-    # --- INÍCIO DA LÓGICA DE AJUSTE PARA DEVOLUÇÕES --- (BLOCO CORRIGIDO)
     colunas_para_ajuste = ['valorTotalCusto', 'valorTotalBruto', 'valorTotalLiquido', 'quantidadeProdutos']
+    
+    # Garante que numeroNotaOrigem esteja acessível, mesmo que vazia
+    if 'numeroNotaOrigem' not in df_final.columns:
+        df_final['numeroNotaOrigem'] = None
+
     for col in colunas_para_ajuste:
         if col in df_final.columns:
             df_final[col] = pd.to_numeric(df_final[col], errors='coerce').fillna(0)
             
-            # Define a condição para encontrar todas as linhas de devolução
+            # Apenas DEVOLUÇÃO deve ter valores negativos
             devolucoes = (df_final['status_venda'] == 'DEVOLUÇÃO')
-        
-            # Aplica a lógica robusta: pega o valor absoluto e o torna negativo
-            # Isso garante que tanto 50 quanto -50 se tornem -50 no final
             df_final.loc[devolucoes, col] = -df_final.loc[devolucoes, col].abs()
-    # --- FIM DA LÓGICA DE AJUSTE PARA DEVOLUÇÕES ---
+            
+            # Para 'Excluída', mantemos o valor como está (positivo, vindo do banco) 
+            # para exibição na tabela de conferência. O filtro do gráfico remove 'Excluída'.
 
     # 3. ATUALIZAÇÃO DO CACHE
     _df_final_cache = df_final
@@ -565,4 +568,4 @@ if __name__ == '__main__':
     os.makedirs(cfg.DATA_DIR, exist_ok=True)
     # Inicia o servidor de desenvolvimento do Flask.
     # debug=True ativa o modo de depuração, que reinicia o servidor a cada alteração no código.
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)

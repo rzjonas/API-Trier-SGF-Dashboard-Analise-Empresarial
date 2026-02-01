@@ -79,7 +79,6 @@ pip install flask pandas requests
 O arquivo config_conexao.py **não está incluso no repositório** e deve ser criado na raiz com as seguintes constantes:
 
 ``` python
-# -*- coding: utf-8 -*-
 
 import os
 from datetime import datetime
